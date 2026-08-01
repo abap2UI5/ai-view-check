@@ -1,0 +1,53 @@
+{
+  "name": "@abap2ui5/view-check",
+  "version": "0.1.0",
+  "description": "Validate abap2UI5 views without an SAP system: UI5 version/deprecation property gate + headless render smoke.",
+  "type": "module",
+  "bin": {
+    "view-check": "cli.mjs"
+  },
+  "exports": {
+    ".": "./lib/index.mjs",
+    "./reconstruct": "./lib/reconstruct.mjs",
+    "./properties": "./lib/properties.mjs",
+    "./render": "./lib/render.mjs"
+  },
+  "files": [
+    "cli.mjs",
+    "lib/",
+    "data/",
+    "action.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "check": "node cli.mjs",
+    "test": "node test/run.mjs",
+    "generate-properties": "node scripts/generate-properties.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/abap2UI5/ai-view-check.git"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/abap2UI5/abap2UI5/issues"
+  },
+  "homepage": "https://github.com/abap2UI5/ai-view-check#readme",
+  "dependencies": {
+    "@openui5/sap.f": "1.150.0",
+    "@openui5/sap.m": "1.150.0",
+    "@openui5/sap.tnt": "1.150.0",
+    "@openui5/sap.ui.codeeditor": "1.150.0",
+    "@openui5/sap.ui.core": "1.150.0",
+    "@openui5/sap.ui.integration": "1.150.0",
+    "@openui5/sap.ui.layout": "1.150.0",
+    "@openui5/sap.ui.table": "1.150.0",
+    "@openui5/sap.ui.unified": "1.150.0",
+    "@openui5/sap.uxap": "1.150.0",
+    "@openui5/themelib_sap_horizon": "1.150.0",
+    "playwright": "^1.61.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
