@@ -112,6 +112,10 @@ assert(!hasR('event-arg-unresolved', (x) => x.value.includes('RESOLVED')),
   'abap rules: a $-prefixed t_arg is fine');
 assert(!hasR('event-arg-unresolved', (x) => x.value.startsWith('{0}')),
   'abap rules: a {N} template placeholder t_arg is quoted, not empty');
+assert(!hasR('event-arg-unresolved', (x) => /lv_local/.test(x.value)),
+  'abap rules: |{ var }| is an ABAP string template - interpolated server-side, not a binding');
+assert(!hasR('event-arg-unresolved', (x) => /URL:/.test(x.value)),
+  'abap rules: a brace object in a FRONTEND action t_arg (_event_client) is its parameter set, not a binding');
 
 const vr = (await checkFiles([f('viewrules.clas.abap')], { render: false }))[0];
 const hasV = (t, pred = () => true) => vr.findings.some((x) => x.type === t && pred(x));

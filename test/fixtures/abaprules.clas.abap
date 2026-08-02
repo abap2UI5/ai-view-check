@@ -25,9 +25,13 @@ CLASS zcl_fixture_rules IMPLEMENTATION.
           )->leaf( `Button`
             )->a( n = `text`  v = `Go`
             )->a( n = `press` v = client->_event( `NO_HANDLER` ) )
+          )->leaf( `Link`
+            )->a( n = `text`  v = `sap.com`
+            )->a( n = `press` v = client->_event_client( val   = client->cs_event-urlhelper
+                                                          t_arg = VALUE #( ( `REDIRECT` ) ( |\{ URL: 'http://www.sap.com', NEW_WINDOW: true \}| ) ) )
           )->leaf( `Button`
             )->a( n = `text`  v = `Pick`
-            )->a( n = `press` v = client->_event( val = `PICK` t_arg = VALUE #( ( `{BARE_BRACE}` ) ( `${RESOLVED}` ) ( `plain` ) ( `{0} selected` ) ) ) ).
+            )->a( n = `press` v = client->_event( val = `PICK` t_arg = VALUE #( ( `{BARE_BRACE}` ) ( `${RESOLVED}` ) ( `plain` ) ( `{0} selected` ) ( |{ lv_local }| ) ) ) ).
 
     client->view_display( view->stringify( ) ).
 
