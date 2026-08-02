@@ -80,11 +80,38 @@ FAIL  src/zcl_my_app.clas.abap  (1 doc(s))
 
 Input can be:
 
-- **ABAP classes** building views with the generic `z2ui5_cl_ai_xml` builder —
-  the view XML is statically reconstructed from the builder calls, and a
-  **typed mock model** is derived from the class's `TYPES`/`DATA`/`model_init`
-  seeds, so bindings resolve realistically during the render.
+- **ABAP classes** building views with either builder — the typed
+  `z2ui5_cl_xml_view` that most abap2UI5 apps are written with, or the generic
+  `z2ui5_cl_ai_xml`. The view XML is statically reconstructed from the builder
+  calls, and a **typed mock model** is derived from the class's
+  `TYPES`/`DATA`/`model_init` seeds, so bindings resolve realistically during
+  the render.
 - **Raw `*.view.xml` / `*.fragment.xml`** files.
+
+### The typed builder
+
+```abap
+DATA(page) = z2ui5_cl_xml_view=>factory( )->shell( )->page( title = `Typed` ).
+page->table( items = client->_bind( t_tab )
+    )->columns( )->column( )->text( `Carrier` ).
+```
+
+With the typed builder the control is the ABAP *method* and its attributes are
+that method's *parameters* — so which method adds which control, whether it
+descends into it, and which parameter becomes which XML attribute is **read
+from the abap2UI5 sources** (441 methods, plus the custom controls of
+`z2ui5_cl_xml_view_cc`) into `data/xml-view.json`, never maintained by hand:
+
+```sh
+A2UI5_HOME=/path/to/abap2UI5 npm run generate-view-builder
+```
+
+Everything after the reconstruction is shared: the same node tree, the same
+property gate, the same render gate, the same abap2UI5 rules. `get_parent( )`,
+`get( \`Page\` )`, `get_root( )` and handles captured mid-chain
+(`DATA(page) = view->page( )`) are followed; `_z2ui5( )` custom controls and
+raw `_generic( ns = \`html\` … )` tags land in namespaces the UI5 metadata
+knows nothing about and are left alone rather than guessed at.
 
 ## CLI
 
@@ -199,6 +226,9 @@ natural place to surface findings as editor diagnostics.
   happened to set.
 
 ## Data
+
+`data/xml-view.json` is the typed builder's method → control mapping, read
+from an abap2UI5 checkout (see above).
 
 `data/properties.json` is generated from the OpenUI5 control sources — per
 control the parent, class-level `@since`/`@deprecated`, interfaces, the

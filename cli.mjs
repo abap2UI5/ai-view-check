@@ -5,7 +5,8 @@
  *   npx abap2ui5-linter [paths...] [options]
  *
  * Paths are files or directories (default: ./src). Checked are ABAP classes
- * building views with z2ui5_cl_ai_xml, plus raw *.view.xml / *.fragment.xml.
+ * building views with either builder — the typed z2ui5_cl_xml_view or the
+ * generic z2ui5_cl_ai_xml — plus raw *.view.xml / *.fragment.xml.
  *
  * Gates:
  *   properties  every control/member written in the view against the UI5
@@ -73,7 +74,7 @@ if (!files.length) {
     console.log(JSON.stringify({ files: 0, failing: 0, skipped: 0, results: [] }));
     process.exit(0);
   }
-  console.log(`abap2ui5-linter: no checkable files under ${paths.join(', ')} (ABAP classes using z2ui5_cl_ai_xml, *.view.xml, *.fragment.xml)`);
+  console.log(`abap2ui5-linter: no checkable files under ${paths.join(', ')} (ABAP classes using z2ui5_cl_xml_view or z2ui5_cl_ai_xml, *.view.xml, *.fragment.xml)`);
   process.exit(0);
 }
 

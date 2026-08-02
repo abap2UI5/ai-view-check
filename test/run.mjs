@@ -10,6 +10,7 @@
  *   dumps.clas.abap     builder calls z2ui5_cl_ai_xml ASSERTs on
  *   rowpaths.clas.abap  relative binding paths inside a bound aggregation
  *   nested.clas.abap    nested structures and nested aggregation bindings
+ *   typed.clas.abap     the typed builder z2ui5_cl_xml_view
  *   sample.view.xml     raw XML path: no findings, renders clean
  */
 import fs from 'fs';
@@ -92,6 +93,12 @@ const rules = (await checkFiles([f('abaprules.clas.abap')], { render: false }))[
 const hasR = (t, pred = () => true) => rules.findings.some((x) => x.type === t && pred(x));
 assert(hasR('obsolete-binder', (x) => x.member === '_bind_edit'),
   'abap rules: _bind_edit reported as obsolete (use _bind)');
+// ... except where z2ui5_if_client itself says to keep using it: _bind has
+// no custom_mapper_back/custom_filter_back
+assert(!checkAbapSource(
+  'client->_bind_edit( val = name custom_mapper_back = mapper )', { render: false }
+).findings.some((x) => x.type === 'obsolete-binder'),
+'abap rules: _bind_edit is not obsolete where it carries custom_mapper_back');
 assert(hasR('binding-to-local', (x) => x.member === 'lv_local'),
   'abap rules: a local variable bound - lost after the roundtrip');
 assert(hasR('event-without-handler', (x) => x.value === 'NO_HANDLER'),
@@ -211,6 +218,30 @@ ENDCLASS.`;
 assert(!checkAbapSource(opaque, { render: false }).findings
   .some((x) => x.type === 'unknown-binding-path'),
   'rows: nothing is claimed about a row type the class does not declare');
+
+// the TYPED builder (z2ui5_cl_xml_view): the control is the ABAP method, its
+// attributes are that method's parameters - both read from the framework
+const typed = (await checkFiles([f('typed.clas.abap')], { render: false }))[0];
+assert(typed.builder === 'typed', 'typed: the builder is recognised from the source');
+assert(typed.docs.length === 1
+  && /<Shell><Page title="Typed">/.test(typed.docs[0])
+  && /<Table items="\{\/T_TAB\}"><columns><Column><Text text="Carrier"\/><\/Column><\/columns>/.test(typed.docs[0]),
+  `typed: the chain reconstructs, get_parent( ) included (${typed.docs[0]?.slice(0, 90)})`);
+assert(/<Input value="\{\/NAME\}"\/>/.test(typed.docs[0]),
+  'typed: client->_bind_edit( name ) resolves to its client path');
+assert(typed.findings.some((x) => x.type === 'invalid-property-value' && x.value === 'Emphasised'),
+  'typed: a bad enum value is caught through the reconstruction');
+assert(typed.findings.some((x) => x.type === 'unknown-binding-path' && x.value === 'CARID'),
+  'typed: a row field the type does not have is caught in the cells template');
+
+// a raw XHTML tag (html:iframe) is not a UI5 aggregation of its parent - a
+// foreign namespace is outside what the metadata can judge
+const foreign = checkAbapSource(`
+  DATA(popup) = z2ui5_cl_xml_view=>factory_popup( )->dialog( \`x\`
+      )->content( )->vbox( )->_generic( ns = \`html\` name = \`iframe\` ).
+  client->popup_display( popup->stringify( ) ).`, { render: false });
+assert(!foreign.findings.some((x) => x.type === 'unknown-aggregation'),
+  'typed: a tag in a foreign namespace is left alone, not read as an aggregation');
 
 // positions in raw XML are just as exact as in a builder class
 const xmlPos = (await checkFiles([f('badvalue.view.xml')], { render: false }))[0];
