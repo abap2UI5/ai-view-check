@@ -303,7 +303,7 @@ severity and a `problems` total.
 
 Consumers: the [ai-mcp](https://github.com/abap2UI5/ai-mcp) server exposes
 these gates as MCP tools for AI coding agents; the
-[VS Code extension](https://github.com/abap2UI5-addons/vscode-extension) is the
+[VS Code extension](https://github.com/abap2UI5/vscode-extension) is the
 natural place to surface findings as editor diagnostics.
 
 ## What it cannot do (by design)

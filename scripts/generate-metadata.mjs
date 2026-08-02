@@ -22,6 +22,8 @@
  * OpenUI5 clone needed.
  *
  * Run:  node scripts/generate-metadata.mjs
+ *       node scripts/generate-metadata.mjs --out <file>   (consumers)
+ *       OPENUI5_DIR=/path/to/openui5 node scripts/generate-metadata.mjs --out …
  */
 
 import fs from 'fs';
@@ -29,7 +31,18 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = path.join(ROOT, 'data', 'properties.json');
+
+/* --out lets a CONSUMER generate a snapshot of its own, with this one
+ * generator, at whatever OpenUI5 version its own work is pinned to. That is
+ * why this script is published with the package (see files[] in package.json):
+ * ai-demokit builds the sample universe from an OpenUI5 checkout that can be
+ * newer than the @openui5 packages this repo pins, and its scope docs need a
+ * snapshot at THAT version. One generator, several invocations - never a
+ * second parser. */
+const outArg = process.argv.indexOf('--out');
+const OUT = outArg !== -1 && process.argv[outArg + 1]
+  ? path.resolve(process.argv[outArg + 1])
+  : path.join(ROOT, 'data', 'properties.json');
 
 const LIBS = [
   'sap.m', 'sap.f', 'sap.ui.core', 'sap.ui.layout', 'sap.ui.table',
