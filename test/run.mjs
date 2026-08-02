@@ -490,6 +490,16 @@ ENDCLASS.`;
   assert(none.length === 0,
     `event-arg-out-of-range: an event the class does not raise, and a read in another method, are not judged (got ${none.length})`);
 
+  // --- date/time model types over a JSON model ------------------------------
+  const dates = checkAbapSource(fs.readFileSync(f('datetype.clas.abap'), 'utf8'));
+  const noSource = dates.findings.filter((x) => x.type === 'date-type-without-source');
+  assert(noSource.length === 3,
+    `date-type-without-source: three sourceless date bindings (got ${noSource.length})`);
+  assert(noSource.map((x) => x.value).sort().join() === 'DateType,TimeType,sap.ui.model.type.DateTime',
+    `date-type-without-source: the alias and the full module name are both judged (got ${noSource.map((x) => x.value).sort().join()})`);
+  assert(!dates.findings.some((x) => x.type === 'date-type-without-source' && x.value === 'sap.ui.model.type.Float'),
+    'date-type-without-source: a non-date type never needs a source format');
+
   // --- frontend-action wires and CSS braces ---------------------------------
   const wire = checkAbapSource(fs.readFileSync(f('wire.clas.abap'), 'utf8'));
   const actions = wire.findings.filter((x) => x.type === 'invalid-frontend-action');

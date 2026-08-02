@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">25 error</span>
+      <span class="badge error">26 error</span>
       <span class="badge warning">11 warning</span>
       <span class="badge hint">3 hint</span>
       <span class="badge fix">3 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 39 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 40 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -402,6 +402,14 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         </h3>
         <p class="summary">a table or structure bound to a scalar property</p>
         <p class="detail">The property receives an object where it expects a value. Nothing throws; the control shows nothing useful.</p>
+      </article>
+      <article class="rule" id="date-type-without-source" data-search="date-type-without-source sap.ui.model.type.date / datetime / time without formatoptions.source without a source format option these types expect a js date instance in the model. an abap2ui5 model is json serialized from abap, so the value is always a string (or a timestamp number) and a date can never reach it — the type raises a formatexception on the first format() and the field stays empty, with nothing in the console for a text. add the source format the abap field actually carries, e.g. formatoptions: { source: { pattern: 'yyyy-mm-dd' } }. note the alias form is resolved through the view's core:require, so type: 'datetype' is judged like the full module name. error">
+        <h3><a href="#date-type-without-source">date-type-without-source</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>sap.ui.model.type.Date</code> / <code>DateTime</code> / <code>Time</code> without <code>formatOptions.source</code></p>
+        <p class="detail">Without a <code>source</code> format option these types expect a <strong>JS <code>Date</code> instance</strong> in the model. An abap2UI5 model is JSON serialized from ABAP, so the value is always a string (or a timestamp number) and a <code>Date</code> can never reach it — the type raises a <code>FormatException</code> on the first <code>format()</code> and the field stays empty, with nothing in the console for a <code>Text</code>. Add the source format the ABAP field actually carries, e.g. <code>formatOptions: { source: { pattern: 'yyyy-MM-dd' } }</code>. Note the alias form is resolved through the view's <code>core:require</code>, so <code>type: 'DateType'</code> is judged like the full module name.</p>
+        <pre><code>a( n = `text` v = |\{ path: '/DATE', type: 'DateType', formatOptions: \{ style: 'short' \} \}| )</code></pre>
       </article>
       <article class="rule" id="missing-accessibility" data-search="missing-accessibility icon-only button without tooltip, image without alt the control is unusable with a screen reader. never wrong by itself, so it is a hint — switch it off per repo with "missing-accessibility": false if your corpus has made another decision. hint">
         <h3><a href="#missing-accessibility">missing-accessibility</a>

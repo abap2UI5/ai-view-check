@@ -140,12 +140,20 @@ worked off**; every entry shipped:
 | Frontend-action wire tokens | `invalid-frontend-action` (+ `lib/frontend-actions.mjs`) |
 | Collapsed-brace expression bindings | `collapsed-brace-in-style`, alongside `unescaped-brace-in-style` |
 | Unbound PUBLIC attribute | `unused-public-attribute` |
+| Date/time model type without a `source` format | `date-type-without-source` |
 
 The last one shipped **narrower than it was written**: "no view binds it" is
 not the same as dead. A PUBLIC attribute used only in ABAP code is state, not
 ballast — PUBLIC is precisely how a value survives the roundtrip — so only a
 name that appears once in the whole class, its own declaration, is reported.
 Keep that distinction if the rule is ever widened.
+
+The `date-type-without-source` entry came from the ai-demokit port of
+`sap.ui.core.sample.TypeDateAsDate` (app 282): its JSON model holds a JS
+`Date`, which an ABAP-fed model can never carry, so the port has to add
+`formatOptions.source` to every binding. Neither the property gate (the
+member exists) nor the render gate (it mocks the model) can see the
+omission — a static read of the binding-info string can.
 
 New candidates go here as they are found. Two rules of the trade the last
 rounds established, before anything is added:

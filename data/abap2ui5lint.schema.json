@@ -99,6 +99,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'control-too-new' — default severity: warning"
         },
+        "date-type-without-source": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'date-type-without-source' — default severity: error"
+        },
         "display-root-mismatch": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'display-root-mismatch' — default severity: error"
