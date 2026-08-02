@@ -13,7 +13,7 @@ and GitHub Action, no SAP system required.
 ```bash
 npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
-npm test                          # test/run.mjs, home-grown asserts, ~35 assertions
+npm test                          # test/run.mjs, home-grown asserts, ~80 assertions
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
 # settings can be pinned in the checked repo's abap2ui5lint.jsonc (lib/config.mjs;
 # CLI flag > config > default; unknown keys fail loudly)
@@ -27,10 +27,13 @@ the playwright install is mandatory, not optional. CI
 
 - Input is **`z2ui5_cl_ai_xml` builder classes** (`collectFiles` picks ABAP
   files containing the literal `z2ui5_cl_ai_xml=>factory`) plus raw
-  `*.view.xml` / `*.fragment.xml`. Classes built with the classic
-  `z2ui5_cl_xml_view` fluent builder are **silently skipped** — e.g. all of
-  [cds-wrapper](https://github.com/abap2UI5-addons/cds-wrapper). That is a
-  design boundary, not a bug to fix in passing.
+  `*.view.xml` / `*.fragment.xml`. Classes built with the frozen
+  `z2ui5_cl_xml_view` fluent builder are **silently skipped** — a design
+  boundary, not a bug to fix in passing: the class is on its way out, and
+  support for it was deliberately added and reverted once already. The way
+  in for such a repo is to migrate it (as
+  [cds-wrapper](https://github.com/abap2UI5-addons/cds-wrapper) did), not to
+  teach the reconstructor a second builder.
 - The knowledge bound is the committed metadata snapshot (see below): the
   gate cannot know about anything newer than its `ui5Version`.
 
