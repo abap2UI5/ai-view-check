@@ -32,24 +32,35 @@
  *   --no-properties    skip the property gate
  *   --advisory         report only, always exit 0 (same as --fail-on never)
  *   --verbose          print reconstruction notes
+ *   --config <file>    read settings from this abap2ui5lint.jsonc; without the
+ *                      flag the file is searched upward from the current
+ *                      directory and from each given path (eslint-style).
+ *                      Precedence: explicit CLI flag > config file > default.
+ *   --no-config        ignore any config file
  */
 import path from 'path';
 import { checkFiles, collectFiles } from './lib/index.mjs';
+import { findConfig, loadConfig, applyConfig } from './lib/config.mjs';
 import { snapshotVersion } from './lib/properties.mjs';
 import { SEVERITIES, severityRank, severityOf, describe } from './lib/findings.mjs';
 
 const args = process.argv.slice(2);
 const opt = { minUi5: '1.71', distribution: 'sapui5', allow: [], render: true, properties: true, failOn: 'warning', verbose: false, json: false };
+const seen = new Set(); // options the CLI set explicitly - they beat the config
 const paths = [];
+let configFlag = null;
+let noConfig = false;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
-  if (a === '--min-ui5' || a === '--ui5') opt.minUi5 = args[++i];
-  else if (a === '--distribution') opt.distribution = String(args[++i]).toLowerCase();
-  else if (a === '--openui5') opt.distribution = 'openui5';
+  if (a === '--min-ui5' || a === '--ui5') { opt.minUi5 = args[++i]; seen.add('minUi5'); }
+  else if (a === '--distribution') { opt.distribution = String(args[++i]).toLowerCase(); seen.add('distribution'); }
+  else if (a === '--openui5') { opt.distribution = 'openui5'; seen.add('distribution'); }
   else if (a === '--allow') opt.allow.push(args[++i]);
-  else if (a === '--no-render') opt.render = false;
-  else if (a === '--no-properties') opt.properties = false;
-  else if (a === '--advisory') opt.failOn = 'never';
+  else if (a === '--no-render') { opt.render = false; seen.add('render'); }
+  else if (a === '--no-properties') { opt.properties = false; seen.add('properties'); }
+  else if (a === '--advisory') { opt.failOn = 'never'; seen.add('failOn'); }
+  else if (a === '--config') configFlag = args[++i];
+  else if (a === '--no-config') noConfig = true;
   else if (a === '--fail-on') {
     const level = String(args[++i]).toLowerCase();
     if (![...SEVERITIES, 'never'].includes(level)) {
@@ -57,13 +68,33 @@ for (let i = 0; i < args.length; i++) {
       process.exit(2);
     }
     opt.failOn = level;
+    seen.add('failOn');
   }
   else if (a === '--verbose') opt.verbose = true;
   else if (a === '--json') opt.json = true;
   else if (a === '--help' || a === '-h') {
-    console.log('usage: abap2ui5-linter [paths...] [--ui5 1.71] [--distribution sapui5|openui5] [--allow control[.member]] [--fail-on error|warning|hint|never] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
+    console.log('usage: abap2ui5-linter [paths...] [--ui5 1.71] [--distribution sapui5|openui5] [--allow control[.member]] [--fail-on error|warning|hint|never] [--no-render] [--no-properties] [--advisory] [--json] [--verbose] [--config abap2ui5lint.jsonc] [--no-config]');
     process.exit(0);
   } else paths.push(a);
+}
+
+// abap2ui5lint.jsonc - the committed settings of the checked repo
+if (!noConfig) {
+  const configFile = configFlag ?? findConfig(process.cwd(), paths);
+  if (configFlag || configFile) {
+    let cfg;
+    try {
+      cfg = loadConfig(configFile);
+    } catch (e) {
+      console.error(`abap2ui5-linter: ${e.message}`);
+      process.exit(2);
+    }
+    applyConfig(opt, seen, cfg);
+    if (!paths.length && cfg.paths) {
+      const base = path.dirname(configFile);
+      paths.push(...cfg.paths.map((p) => (path.isAbsolute(p) ? p : path.join(base, p))));
+    }
+  }
 }
 if (!paths.length) paths.push('src');
 

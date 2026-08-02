@@ -295,5 +295,58 @@ assert(xml.kind === 'xml', 'xml: raw view detected');
 assert(xml.findings.length === 0, 'xml: no property findings');
 assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0] || ''})`);
 
+
+// ---------------------------------------------------------------- config ----
+{
+  const os = await import('node:os');
+  const cp = await import('node:child_process');
+  const { stripJsonc, loadConfig, applyConfig, findConfig, CONFIG_NAME } = await import('../lib/config.mjs');
+  const CLI = path.join(FIX, '..', '..', 'cli.mjs');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui5lint-'));
+  const sub = path.join(dir, 'nested', 'deep');
+  fs.mkdirSync(sub, { recursive: true });
+  const cfgFile = path.join(dir, CONFIG_NAME);
+  fs.writeFileSync(cfgFile, `{
+  // comment survives
+  "ui5": "1.96",
+  "failOn": "hint",
+  "render": false,
+  "allow": ["sap.m.Avatar"], // trailing comma next
+}`);
+
+  assert(JSON.parse(stripJsonc('{"a":1,/*x*/"b":"//not a comment",}')).b === '//not a comment',
+    'config: stripJsonc keeps // inside strings');
+
+  const cfg = loadConfig(cfgFile);
+  assert(cfg.minUi5 === '1.96' && cfg.failOn === 'hint' && cfg.render === false,
+    'config: jsonc parsed with comments and trailing commas');
+
+  assert(findConfig(sub) === cfgFile, 'config: discovered walking upward from a nested dir');
+
+  const opt = { minUi5: '1.71', failOn: 'warning', render: true, allow: ['sap.m.Page.x'] };
+  applyConfig(opt, new Set(['failOn']), cfg);
+  assert(opt.minUi5 === '1.96', 'config: fills an option the CLI did not set');
+  assert(opt.failOn === 'warning', 'config: an explicit CLI flag beats the config');
+  assert(opt.allow.includes('sap.m.Avatar') && opt.allow.includes('sap.m.Page.x'),
+    'config: allow lists merge');
+
+  let threw = '';
+  fs.writeFileSync(path.join(dir, 'bad.jsonc'), '{"tpyo": 1}');
+  try { loadConfig(path.join(dir, 'bad.jsonc')); }
+  catch (e) { threw = e.message; }
+  assert(/unknown key 'tpyo'/.test(threw), 'config: an unknown key fails loudly');
+
+  // end-to-end: the CLI picks the config up from the checked path's directory
+  // (cwd is this repo, which has no config - discovery must come from the path)
+  fs.copyFileSync(f('good.clas.abap'), path.join(sub, 'good.clas.abap'));
+  const out = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap')], { encoding: 'utf8' });
+  assert(/target SAPUI5 1\.96/.test(out) && /failing on hint/.test(out),
+    'config: cli applies ui5/failOn from the discovered abap2ui5lint.jsonc');
+  const off = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap'), '--no-config'], { encoding: 'utf8' });
+  assert(/target SAPUI5 1\.71/.test(off), 'config: --no-config restores the defaults');
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 console.log(failed ? `\n${failed} assertion(s) failed` : '\nall assertions passed');
 process.exit(failed ? 1 : 0);

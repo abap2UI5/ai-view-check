@@ -5,17 +5,17 @@ branding:
   color: 'blue'
 inputs:
   paths:
-    description: 'Files or directories to check (space-separated)'
+    description: 'Files or directories to check (space-separated). Unset: the repo''s abap2ui5lint.jsonc "paths", falling back to src'
     required: false
-    default: 'src'
+    default: ''
   min-ui5:
-    description: 'UI5 floor for the property gate'
+    description: 'UI5 floor for the property gate. Unset: the repo''s abap2ui5lint.jsonc, falling back to 1.71'
     required: false
-    default: '1.71'
+    default: ''
   fail-on:
-    description: 'Lowest severity that fails the job: error, warning, hint or never'
+    description: 'Lowest severity that fails the job: error, warning, hint or never. Unset: the repo''s abap2ui5lint.jsonc, falling back to warning'
     required: false
-    default: 'warning'
+    default: ''
   flags:
     description: 'Extra CLI flags, e.g. "--no-render --allow sap.m.Avatar.displaySize"'
     required: false
@@ -34,4 +34,10 @@ runs:
       run: npx --prefix "${{ github.action_path }}" playwright install chromium --with-deps
     - name: Run abap2UI5-linter
       shell: bash
-      run: node "${{ github.action_path }}/cli.mjs" ${{ inputs.paths }} --min-ui5 "${{ inputs['min-ui5'] }}" --fail-on "${{ inputs['fail-on'] }}" ${{ inputs.flags }}
+      # only explicitly-set inputs become flags, so the checked repo's
+      # abap2ui5lint.jsonc governs everything left unset
+      run: |
+        ARGS=()
+        [ -n "${{ inputs['min-ui5'] }}" ] && ARGS+=(--min-ui5 "${{ inputs['min-ui5'] }}")
+        [ -n "${{ inputs['fail-on'] }}" ] && ARGS+=(--fail-on "${{ inputs['fail-on'] }}")
+        node "${{ github.action_path }}/cli.mjs" ${{ inputs.paths }} "${ARGS[@]}" ${{ inputs.flags }}

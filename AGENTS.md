@@ -15,6 +15,8 @@ npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
 npm test                          # test/run.mjs, home-grown asserts, ~35 assertions
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
+# settings can be pinned in the checked repo's abap2ui5lint.jsonc (lib/config.mjs;
+# CLI flag > config > default; unknown keys fail loudly)
 ```
 
 `npm test` fails with an unhelpful Chromium error after a bare `npm ci` —
@@ -43,6 +45,7 @@ emit sites. Current inventory (grep the id to find the exact line):
 | `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `view-never-displayed` |
 | `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
+| `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc` loader (discovery, validation, precedence). New config keys go through its KNOWN set + a run.mjs assertion |
 | `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, messages). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
 
 **A new rule moves three places together** — forgetting one has happened:

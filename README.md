@@ -136,6 +136,28 @@ therefore made against that snapshot: a control **removed** in a later UI5
 than your target cannot be distinguished from a typo, so keep the snapshot at
 or above the versions you target.
 
+## Configuration file — `abap2ui5lint.jsonc`
+
+Pin the settings in the checked repo instead of repeating CLI flags — same
+idea as `abaplint.jsonc`. Discovery is eslint-style: `--config <file>` wins,
+otherwise the file is searched upward from the current directory and from
+each given path. Precedence per option: explicit CLI flag > config file >
+built-in default (`--no-config` ignores the file entirely).
+
+```jsonc
+{
+  "paths": ["src"],          // used when the CLI got no positional paths
+  "ui5": "1.71",             // UI5 floor for the property gate
+  "distribution": "sapui5",  // or "openui5"
+  "failOn": "warning",       // error | warning | hint | never
+  "render": true,            // false = skip the render gate (--no-render)
+  "allow": []                // e.g. ["sap.m.Avatar.displaySize"]
+}
+```
+
+Unknown keys fail loudly (typo protection). The GitHub Action defers to the
+repo's config for every input you leave unset.
+
 ## GitHub Action
 
 ```yaml
