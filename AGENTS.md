@@ -141,6 +141,7 @@ worked off**; every entry shipped:
 | Collapsed-brace expression bindings | `collapsed-brace-in-style`, alongside `unescaped-brace-in-style` |
 | Unbound PUBLIC attribute | `unused-public-attribute` |
 | Date/time model type without a `source` format | `date-type-without-source` |
+| `CONTROL_BY_ID` naming an id no view declares | `frontend-action-unknown-id` |
 
 The last one shipped **narrower than it was written**: "no view binds it" is
 not the same as dead. A PUBLIC attribute used only in ABAP code is state, not
@@ -154,6 +155,14 @@ The `date-type-without-source` entry came from the ai-demokit port of
 `formatOptions.source` to every binding. Neither the property gate (the
 member exists) nor the render gate (it mocks the model) can see the
 omission — a static read of the binding-info string can.
+
+`frontend-action-unknown-id` came from the same batch (app 284, a
+`navigateBack` on a MessageView that lives in the popup slot): the id is
+the only part of a `CONTROL_BY_ID` wire nothing validated, and a wrong one
+is silent in exactly the way the whole rule family exists for. It is
+deliberately narrow — the id set is trusted only when EVERY `id`
+attribute of the class is a literal, so a class that builds ids at
+runtime is not judged at all.
 
 New candidates go here as they are found. Two rules of the trade the last
 rounds established, before anything is added:

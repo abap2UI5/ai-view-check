@@ -143,6 +143,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'excess-shut' — default severity: error"
         },
+        "frontend-action-unknown-id": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'frontend-action-unknown-id' — default severity: error"
+        },
         "invalid-aggregation-child": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'invalid-aggregation-child' — default severity: error"

@@ -34,6 +34,7 @@ Two gates:
    | `sapui5-only-control` | needs SAPUI5, absent from OpenUI5 (see below) |
    | `missing-required-aggregation` | a `Table` bound to rows but given no `columns` — renders empty |
    | `collection-bound-to-property` | a table/structure bound to a scalar property |
+   | `frontend-action-unknown-id` | a `CONTROL_BY_ID` wire whose literal id no view of the class declares — the frontend finds nothing and the wire silently does nothing |
    | `date-type-without-source` | a `sap.ui.model.type.Date`/`DateTime`/`Time` binding with no `formatOptions.source` — the JSON model can only carry a string, so the type throws on every format |
    | `binding-type-mismatch` | an ABAP character field bound to a numeric/boolean property — it arrives as `"100"` where UI5 declared a float, which future mode rejects |
    | `missing-accessibility` | icon-only `Button` without `tooltip`, `Image` without `alt` |

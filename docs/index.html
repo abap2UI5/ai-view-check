@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">26 error</span>
+      <span class="badge error">27 error</span>
       <span class="badge warning">11 warning</span>
       <span class="badge hint">3 hint</span>
       <span class="badge fix">3 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 40 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 41 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -326,6 +326,15 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         </h3>
         <p class="summary">an event nothing reacts to</p>
         <p class="detail">Usually a dead control — but in abap2UI5 an event also forces a roundtrip, and that alone synchronises the model back into ABAP. So this is a hint, never an error, and it is skipped entirely when handler names are not literals.</p>
+      </article>
+      <article class="rule" id="frontend-action-unknown-id" data-search="frontend-action-unknown-id a control_by_id wire naming an id no view declares the frontend resolves the first t_arg as a control id. when no view of the class gives a control that id — a typo, a renamed control, an id that only ever existed in another app — the lookup fails, the frontend logs it and the wire does nothing: no exception, no failed render, a button that looks connected. judged only when every id attribute of the class is a literal; a class that builds ids at runtime is left alone. error">
+        <h3><a href="#frontend-action-unknown-id">frontend-action-unknown-id</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a <code>CONTROL_BY_ID</code> wire naming an id no view declares</p>
+        <p class="detail">The frontend resolves the first <code>t_arg</code> as a control id. When no view of the class gives a control that id — a typo, a renamed control, an id that only ever existed in another app — the lookup fails, the frontend logs it and the wire does <strong>nothing</strong>: no exception, no failed render, a button that looks connected. Judged only when every <code>id</code> attribute of the class is a literal; a class that builds ids at runtime is left alone.</p>
+        <pre><code>a( n = `id` v = `messageView` )
+" … follow_up_action( val = client-&gt;cs_event-control_by_id t_arg = VALUE #( ( `messageview` ) ( `navigateBack` ) ) )</code></pre>
       </article>
       <article class="rule" id="invalid-frontend-action" data-search="invalid-frontend-action a frontend-action t_arg outside the set the runtime accepts a client-&gt;_event_client( ) / client-&gt;follow_up_action( ) wire is dispatched in the browser by name, and a name outside the whitelist raises nothing anywhere: frontendaction logs to the console and the control does nothing when pressed. judged only for literal arguments and only where the runtime's set is closed — the control_global object and its method, the binding_call method, and control_by_id's obsolete empty view slot (which shifts the method out of position). control_by_id's method list is open by design and is never judged. error">
         <h3><a href="#invalid-frontend-action">invalid-frontend-action</a>

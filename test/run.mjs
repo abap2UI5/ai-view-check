@@ -490,6 +490,24 @@ ENDCLASS.`;
   assert(none.length === 0,
     `event-arg-out-of-range: an event the class does not raise, and a read in another method, are not judged (got ${none.length})`);
 
+  // --- CONTROL_BY_ID against the ids the class actually declares ------------
+  const ids = checkAbapRules(fs.readFileSync(f('actionid.clas.abap'), 'utf8'))
+    .filter((x) => x.type === 'frontend-action-unknown-id');
+  assert(ids.length === 1 && ids[0].value === 'messageview',
+    `frontend-action-unknown-id: only the miscased id is reported (got ${ids.map((x) => x.value).join() || 'none'})`);
+  assert(ids[0].allowed.sort().join() === 'mainPage,messageView',
+    `frontend-action-unknown-id: the finding carries the declared ids (got ${ids[0].allowed.join()})`);
+  assert(checkAbapRules(`
+    DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+    v->leaf( \`Page\` )->a( n = \`id\` v = |page{ idx }| ).
+    client->follow_up_action( val = client->cs_event-control_by_id
+                              t_arg = VALUE #( ( \`page1\` ) ( \`focus\` ) ) ).`)
+    .filter((x) => x.type === 'frontend-action-unknown-id').length === 0,
+    'frontend-action-unknown-id: a class that builds ids at runtime is not judged');
+  assert(checkAbapRules(fs.readFileSync(f('wire.clas.abap'), 'utf8'))
+    .filter((x) => x.type === 'frontend-action-unknown-id').length === 0,
+    'frontend-action-unknown-id: a class whose views declare no id at all is not judged');
+
   // --- date/time model types over a JSON model ------------------------------
   const dates = checkAbapSource(fs.readFileSync(f('datetype.clas.abap'), 'utf8'));
   const noSource = dates.findings.filter((x) => x.type === 'date-type-without-source');
