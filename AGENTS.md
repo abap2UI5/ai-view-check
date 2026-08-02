@@ -126,6 +126,12 @@ the README).
 - The VS Code extension additionally pins a **linter commit SHA** in its
   `package-lock.json` for the bundled property gate — a new finding type is
   invisible in the editor until that lock is bumped there.
+- **`abap2ui5lint.jsonc` is honoured by the CLI and the Action, not yet by
+  the VS Code extension** (it calls the library directly and reads its
+  thresholds from VS Code settings). Until that is wired up, a repo that
+  pins a UI5 floor here gets a different verdict in the editor than in CI —
+  see the extension's AGENTS.md for the intended fix (`export config` is
+  already available as `@abap2ui5/linter/config`).
 
 ## Relation to ai-demokit — this repo is canonical now
 
