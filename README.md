@@ -8,7 +8,7 @@ generated ports of the official UI5 demo kit samples.
 Two gates:
 
 1. **Property gate** — everything the view writes is resolved against a UI5
-   metadata snapshot (985 controls with their full member lists and types,
+   metadata snapshot (970 controls with their full member lists and types,
    219 enums, generated from the OpenUI5 sources). It reports:
 
    | Finding | Example |
