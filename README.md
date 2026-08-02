@@ -20,7 +20,8 @@ Two gates:
    | `too-many-children` | two controls in a 0..1 aggregation |
    | `invalid-aggregation-child` | a control the aggregation's type does not accept |
    | `control-too-new` / `member-too-new` | introduced after your target UI5 version (default **1.71**) |
-   | `control-deprecated` | already deprecated at your target version |
+   | `control-deprecated` / `member-deprecated` | control or property already deprecated at your target version |
+   | `duplicate-aggregation` | the same aggregation opened twice under one control — the second tag replaces the first |
    | `excess-shut` | one `shut( )` more than the builder tree is deep — asserts at runtime |
    | `duplicate-id` | the same `id` twice — duplicate-ID error at runtime |
    | `undeclared-namespace` | `ns = 'form'` without an `xmlns:form` |

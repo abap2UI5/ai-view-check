@@ -104,6 +104,10 @@ assert(hasV('undeclared-namespace', (x) => x.member === 'undeclared'),
   'view rules: namespace prefix used but never declared');
 assert(hasV('missing-accessibility', (x) => x.member === 'tooltip'),
   'view rules: icon-only button without a tooltip');
+assert(hasV('duplicate-aggregation', (x) => x.member === 'content'),
+  'view rules: the same aggregation opened twice under one control');
+assert(hasV('member-deprecated', (x) => x.member === 'translucent'),
+  'view rules: a deprecated property reported (version-aware, like controls)');
 assert(!hasV('invalid-expression-binding'),
   'view rules: a well-formed expression binding is not flagged');
 

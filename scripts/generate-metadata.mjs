@@ -153,7 +153,13 @@ function declEntry(decl, doc) {
   const since = doc?.match(/@since\s+(?:version\s+)?([\d.]+)/i)?.[1];
   if (since) entry.since = since;
   const dep = doc?.match(/@deprecated(?:\s+As of(?:\s+version)?\s+([\d.]+))?([^\n]*)/i);
-  if (dep) entry.deprecated = (dep[2] || '').replace(/^[\s.,;:—-]+/, '').replace(/\s+/g, ' ').trim() || true;
+  if (dep) {
+    // keep the version: a member deprecated in 1.120 is fine for a 1.71 target
+    entry.deprecated = {
+      since: dep[1] || null,
+      text: (dep[2] || '').replace(/^[\s.,;:—-]+/, '').replace(/\s+/g, ' ').trim(),
+    };
+  }
   return entry;
 }
 

@@ -21,7 +21,17 @@ CLASS zcl_fixture_viewrules IMPLEMENTATION.
             )->a( n = `icon` v = `sap-icon://add`
           )->leaf( `Text`
             )->a( n = `text` v = `{= ${/NAME} === 'x' ? 'yes' : 'no' }`
-          )->leaf( n = `Title` ns = `undeclared` ).
+          )->leaf( n = `Title` ns = `undeclared`
+        )->shut(
+        )->open( `content`
+          )->leaf( `Text`
+            )->a( n = `text` v = `first`
+        )->shut(
+        )->open( `content`
+          )->leaf( `Text`
+            )->a( n = `text` v = `second`
+          )->leaf( `Bar`
+            )->a( n = `translucent` v = `true` ).
 
     client->view_display( view->stringify( ) ).
 

@@ -82,7 +82,9 @@ for (const r of results) {
   const status = problems ? 'FAIL' : 'pass';
   console.log(`${status}  ${rel}${r.docs.length ? `  (${r.docs.length} doc(s))` : ''}`);
   for (const f of r.findings) {
-    if (f.type === 'unconverted-abap-boolean') console.log(`      ${f.member}: the ABAP boolean ${f.value} reaches the view as 'X'/' ' — wrap it in z2ui5_cl_ai_xml=>as_bool( )`);
+    if (f.type === 'member-deprecated') console.log(`      ${f.control} ${f.member} is deprecated (${String(f.deprecated?.text || '').slice(0, 70)})`);
+    else if (f.type === 'duplicate-aggregation') console.log(`      ${f.control} opens ${f.member} twice — the second tag replaces the first`);
+    else if (f.type === 'unconverted-abap-boolean') console.log(`      ${f.member}: the ABAP boolean ${f.value} reaches the view as 'X'/' ' — wrap it in z2ui5_cl_ai_xml=>as_bool( )`);
     else if (f.type === 'unknown-binding-path') console.log(`      ${f.control} ${f.member}="{${f.value}}" — the model has no such path (silently empty)`);
     else if (f.type === 'binding-for-event') console.log(`      ${f.control} ${f.member} is an event but carries a binding — use client->_event( )`);
     else if (f.type === 'event-for-property') console.log(`      ${f.control} ${f.member} is a property but carries an event handler — use client->_bind( )`);
