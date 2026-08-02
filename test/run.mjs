@@ -356,10 +356,11 @@ assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0]
   // end-to-end: the CLI picks the config up from the checked path's directory
   // (cwd is this repo, which has no config - discovery must come from the path)
   fs.copyFileSync(f('good.clas.abap'), path.join(sub, 'good.clas.abap'));
-  const out = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap')], { encoding: 'utf8' });
+  const env = { ...process.env, NO_COLOR: '1', GITHUB_ACTIONS: '' }; // never inherit the runner's
+  const out = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap')], { encoding: 'utf8', env });
   assert(/target SAPUI5 1\.96/.test(out) && /failing on hint/.test(out),
     'config: cli applies ui5/failOn from the discovered abap2ui5lint.jsonc');
-  const off = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap'), '--no-config'], { encoding: 'utf8' });
+  const off = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap'), '--no-config'], { encoding: 'utf8', env });
   assert(/target SAPUI5 1\.71/.test(off), 'config: --no-config restores the defaults');
 
   // the .json spelling is discovered too (abaplint.json / abaplint.jsonc)
@@ -552,8 +553,12 @@ ENDCLASS.`;
 
   // the linter still exits 1 on what is left over, so never trust execFileSync
   const run = (env = {}) => {
-    try { return cp.execFileSync('node', [CLI, target, '--no-render', '--fix'], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', ...env } }); }
-    catch (e) { return e.stdout ?? ''; }
+    try {
+      return cp.execFileSync('node', [CLI, target, '--no-render', '--fix'], {
+        encoding: 'utf8',
+        env: { ...process.env, NO_COLOR: '1', GITHUB_ACTIONS: '', ...env },
+      });
+    } catch (e) { return e.stdout ?? ''; }
   };
 
   const dry = run({ ABAP2UI5LINT_FIX_DRY_RUN: 'true' });
@@ -589,9 +594,16 @@ ENDCLASS.`;
 {
   const cp = await import('node:child_process');
   const CLI = path.join(FIX, '..', '..', 'cli.mjs');
+  // GITHUB_ACTIONS is pinned OFF: inherited from the runner it turns the
+  // annotations on for every case below, and the assertions would then be
+  // testing a different program in CI than they test locally
   const run = (args, env = {}) => {
-    try { return cp.execFileSync('node', [CLI, ...args], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', ...env } }); }
-    catch (e) { return e.stdout ?? ''; }
+    try {
+      return cp.execFileSync('node', [CLI, ...args], {
+        encoding: 'utf8',
+        env: { ...process.env, NO_COLOR: '1', GITHUB_ACTIONS: '', ...env },
+      });
+    } catch (e) { return e.stdout ?? ''; }
   };
   const dumps = f('dumps.clas.abap');
 
@@ -622,6 +634,13 @@ ENDCLASS.`;
   assert(!/^::/m.test(run([dumps, '--no-render', '--no-annotate'], { GITHUB_ACTIONS: 'true' })),
     'report: --no-annotate switches that off again');
   assert(!/^::/m.test(run([dumps, '--no-render'])), 'report: no annotations outside a workflow');
+  // a workflow command appended after the document would make it a parse
+  // error - `--json | jq` inside Actions is the case that found this
+  const inWorkflow = run([dumps, '--no-render', '--json'], { GITHUB_ACTIONS: 'true' });
+  assert(JSON.parse(inWorkflow).problems === 2 && !/^::/m.test(inWorkflow),
+    'report: --json stays parseable inside GitHub Actions, annotations do not join it');
+  assert(!/^::/m.test(run([dumps, '--no-render', '--format', 'markdown'], { GITHUB_ACTIONS: 'true' })),
+    'report: markdown stays clean too');
 
   assert(/^abap2ui5-linter \d+\.\d+\.\d+ \(.*cli\.mjs\)$/m.test(run(['--version'])),
     'report: --version prints version and script location');

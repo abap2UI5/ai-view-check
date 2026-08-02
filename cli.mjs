@@ -37,7 +37,8 @@
  *   --quiet            report errors only - the counts still show everything
  *   --annotate         emit GitHub workflow commands so findings show up on
  *                      the pull request diff (default inside GitHub Actions;
- *                      --no-annotate switches it off)
+ *                      --no-annotate switches it off). Alongside the stylish
+ *                      report only - json and markdown stay parseable.
  *   --no-render        skip the render gate (no browser/@openui5 needed)
  *   --no-properties    skip the property gate
  *   --advisory         report only, always exit 0 (same as --fail-on never)
@@ -203,6 +204,13 @@ if (opt.verbose && opt.format === 'stylish') {
   }
 }
 
-if (opt.annotate) for (const line of githubAnnotations(results, opt)) console.log(line);
+/* Annotations ride ALONGSIDE the human report, never inside a machine-readable
+ * one: `--format json` exists to be piped into something, and a workflow
+ * command appended after the document turns that document into a parse error.
+ * Inside Actions the default is on, so `--json | jq` in a workflow would have
+ * broken without this - which is exactly how CI found it. */
+if (opt.annotate && opt.format === 'stylish') {
+  for (const line of githubAnnotations(results, opt)) console.log(line);
+}
 
 if (summary.failing > 0) process.exit(1);
