@@ -38,6 +38,6 @@ runs:
       # abap2ui5lint.jsonc governs everything left unset
       run: |
         ARGS=()
-        [ -n "${{ inputs['min-ui5'] }}" ] && ARGS+=(--min-ui5 "${{ inputs['min-ui5'] }}")
-        [ -n "${{ inputs['fail-on'] }}" ] && ARGS+=(--fail-on "${{ inputs['fail-on'] }}")
+        if [ -n "${{ inputs['min-ui5'] }}" ]; then ARGS+=(--min-ui5 "${{ inputs['min-ui5'] }}"); fi
+        if [ -n "${{ inputs['fail-on'] }}" ]; then ARGS+=(--fail-on "${{ inputs['fail-on'] }}"); fi
         node "${{ github.action_path }}/cli.mjs" ${{ inputs.paths }} "${ARGS[@]}" ${{ inputs.flags }}
