@@ -106,6 +106,12 @@ assert(hasR('unconverted-abap-boolean', (x) => x.member === 'expanded' && x.valu
   'abap rules: an ABAP boolean written into the view without as_bool( )');
 assert(hasR('unknown-binding-path', (x) => x.value === '/TYPOED_PATH'),
   'abap rules: a hand-written binding path the model does not have');
+assert(hasR('event-arg-unresolved', (x) => x.value === '{BARE_BRACE}'),
+  'abap rules: a bare-brace t_arg arrives empty - must be $-prefixed');
+assert(!hasR('event-arg-unresolved', (x) => x.value.includes('RESOLVED')),
+  'abap rules: a $-prefixed t_arg is fine');
+assert(!hasR('event-arg-unresolved', (x) => x.value.startsWith('{0}')),
+  'abap rules: a {N} template placeholder t_arg is quoted, not empty');
 
 const vr = (await checkFiles([f('viewrules.clas.abap')], { render: false }))[0];
 const hasV = (t, pred = () => true) => vr.findings.some((x) => x.type === t && pred(x));

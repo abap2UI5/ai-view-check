@@ -40,7 +40,7 @@ emit sites. Current inventory (grep the id to find the exact line):
 | Emitting file | Finding types |
 | --- | --- |
 | `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `missing-accessibility` |
-| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `view-never-displayed` |
+| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `view-never-displayed` |
 | `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
 | `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, messages). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
@@ -54,6 +54,40 @@ emit sites. Current inventory (grep the id to find the exact line):
 Known test-coverage debt (assert these when touching the area):
 `invalid-aggregation-child`, `event-for-property`, `view-never-displayed`,
 `sapui5-only-control` and `open-levels` currently have no test assertion.
+
+## Static-check roadmap — app knowledge that can still move into the gate
+
+The mission is to encode as much app-building knowledge as possible as
+static checks, so an agent learns a rule from a finding instead of a doc.
+Candidates, distilled from the app guide and the ai-demokit gotchas, in
+rough feasibility order (each new rule follows the three-places rule above
+plus a severity classification in `lib/findings.mjs`):
+
+1. **Popup/view root mismatch** — `popup_display`/`popover_display` handed a
+   root `mvc:View`, or `view_display` handed a `core:FragmentDefinition`.
+   `reconstruct` knows each doc's root; `abap-rules` sees the display calls —
+   they need to be joined per doc.
+2. **Strictly-typed property bound to a `TYPE string` field** — UI5 2.x
+   rejects a JSON string on an int/float/boolean property
+   (`"100" is of type string, expected float`). `abap-rules` already parses
+   `DATA ... TYPE`; `properties.json` knows the property type — join them for
+   two-way `_bind` targets.
+3. **Unbound PUBLIC attribute** (hint) — every PUBLIC attribute is serialized
+   into the draft and shipped to the browser per roundtrip; one that no view
+   ever binds is dead transport weight. Needs the class's PUBLIC DATA set
+   minus every `_bind`/`{FIELD}` reference.
+4. **`get_event_arg( n )` beyond the declared `t_arg` arity** — the event
+   declares its args statically; reading past them returns initial (or 500s
+   in the transpiled runtime). Cross-check per event name.
+5. **Frontend-action wire tokens** — the first `t_arg` of `control_global`
+   must be a whitelisted global (`MESSAGE_TOAST`, …), `binding_call` methods
+   must be `filter`/`sort`, `CONTROL_METHODS` args are positional and extras
+   are silently dropped. Needs a small committed catalog generated from the
+   core's `FrontendAction.js` (same pattern as `data/properties.json`).
+6. **Collapsed-brace expression bindings** — a `\{`-escaped brace inside a
+   `|…|` template around a relative row field collapses and the attribute
+   silently stops being a binding; heuristics exist in ai-demokit's
+   pattern-lint and could generalize.
 
 ## `data/properties.json` is generated — never hand-edit
 

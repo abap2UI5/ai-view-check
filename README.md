@@ -52,6 +52,7 @@ Two gates:
    | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
    | `view-never-displayed` | a view is built but never handed to the client — an empty page, no error |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
+   | `event-arg-unresolved` | a bare-brace `t_arg` literal (`` `{COL}` ``): the runtime sends it verbatim but only `$`-prefixed expressions are resolved by UI5, so `get_event_arg( )` receives an **empty** value with no error anywhere. Write `` `${COL}` `` (a template *starting* with a `{0}` placeholder is fine — that form is quoted) |
 
 Every finding carries a **severity**, a ready-made **message** and — where
 the gate could place it — the **line and column** in the file it came from:

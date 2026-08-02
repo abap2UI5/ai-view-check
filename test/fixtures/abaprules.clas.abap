@@ -24,7 +24,10 @@ CLASS zcl_fixture_rules IMPLEMENTATION.
             )->a( n = `expanded` v = abap_true
           )->leaf( `Button`
             )->a( n = `text`  v = `Go`
-            )->a( n = `press` v = client->_event( `NO_HANDLER` ) ).
+            )->a( n = `press` v = client->_event( `NO_HANDLER` ) )
+          )->leaf( `Button`
+            )->a( n = `text`  v = `Pick`
+            )->a( n = `press` v = client->_event( val = `PICK` t_arg = VALUE #( ( `{BARE_BRACE}` ) ( `${RESOLVED}` ) ( `plain` ) ( `{0} selected` ) ) ) ).
 
     client->view_display( view->stringify( ) ).
 
