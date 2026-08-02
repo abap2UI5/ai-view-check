@@ -189,6 +189,14 @@ natural place to surface findings as editor diagnostics.
 - Enum *values* newer than the floor are invisible at the member-name level;
   members without `@since` count as always-available (they predate version
   tracking).
+- A model field the class fills **in code** (a `LOOP` in `model_init`) instead
+  of in a literal seed has no static value. The render gate therefore only
+  ever sees what a seed sets — inventing an empty string for such a field
+  would have UI5's strict mode reject a perfectly good view (`state=""` is not
+  a `ValueState`). The property gate asks a second, complete picture of the
+  model instead: every declared field of every declared structure, so a
+  binding path is judged against what a row *has*, not against what a seed
+  happened to set.
 
 ## Data
 

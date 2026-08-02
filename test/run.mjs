@@ -9,12 +9,14 @@
  *                       numeric values, 0..1 overfilled, excess shut( )
  *   dumps.clas.abap     builder calls z2ui5_cl_ai_xml ASSERTs on
  *   rowpaths.clas.abap  relative binding paths inside a bound aggregation
+ *   nested.clas.abap    nested structures and nested aggregation bindings
  *   sample.view.xml     raw XML path: no findings, renders clean
  */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { checkAbapSource, checkFiles } from '../lib/index.mjs';
+import { prepareAbap } from '../lib/reconstruct.mjs';
 import { severityOf } from '../lib/findings.mjs';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -163,6 +165,25 @@ assert(!rows.findings.some((x) => x.value === 'SEATSMAX'),
   'rows: a declared but unseeded field is part of the row - an ABAP structure always has all of them');
 assert(!rows.findings.some((x) => x.value === 'CARRID'),
   'rows: a column header under `columns` is not in the row context and is left alone');
+
+// a nested aggregation binding moves the context DOWN - including the
+// complex {path: '...'} form the templates actually use
+const nested = (await checkFiles([f('nested.clas.abap')], { render: false }))[0];
+const nestedPaths = nested.findings.filter((x) => x.type === 'unknown-binding-path');
+assert(nestedPaths.length === 1 && nestedPaths[0].value === 'EXPENSE'
+  && nestedPaths[0].context === 'ELEMENTS',
+  `nested: inside the inner list only its own row fields exist (${nestedPaths.map((x) => x.value).join(', ')})`);
+assert(!nested.findings.some((x) => String(x.value).startsWith('AMOUNT/')),
+  'nested: a path through a nested structure resolves');
+
+// the model handed to the RENDERER stays what a seed actually sets: a field
+// the class fills in code cannot be followed statically, and inventing an
+// empty string for it makes UI5 strict mode reject a good view
+const prep = prepareAbap(fs.readFileSync(f('nested.clas.abap'), 'utf8'));
+assert(!('ELEMENTS' in prep.model.T_ROWS[0]) && 'ELEMENTS' in prep.modelShape.T_ROWS[0],
+  'model: the unseeded field is in the shape the gate asks about, not in the render model');
+assert(prep.model.T_ROWS[0].AMOUNT.SIZE === 560,
+  'model: a nested structure seed parses as one structure, not as an empty table');
 
 // no row shape, no verdict: a table of a type the class does not declare
 // could have any field, so nothing there is reported
