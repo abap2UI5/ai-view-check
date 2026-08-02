@@ -1,0 +1,44 @@
+name: Render-gate bundle
+# Maintains the rolling release `render-gate-bundle`: a self-contained
+# tarball of the checker (CLI + lib + data + production node_modules,
+# pure JS - no native modules, so one bundle serves every OS). The
+# abap2UI5 VS Code extension downloads this asset to install the render
+# gate with VS Code's own Node.js; Chromium is fetched separately via
+# playwright's CLI at install time.
+on:
+  push:
+    branches: [main]
+    paths:
+      - cli.mjs
+      - lib/**
+      - data/**
+      - package.json
+      - package-lock.json
+      - .github/workflows/bundle.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci --omit=dev
+      - run: tar czf view-check-bundle.tgz cli.mjs lib data node_modules package.json
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: render-gate-bundle
+          name: Render-gate bundle (rolling)
+          body: >
+            Self-contained checker bundle (CLI + runtime dependencies) rebuilt
+            automatically from main. Consumed by the abap2UI5 VS Code
+            extension's "Install Render Gate" command - not meant for manual
+            installation; see the README for the CLI setup.
+          prerelease: true
+          make_latest: false
+          files: view-check-bundle.tgz

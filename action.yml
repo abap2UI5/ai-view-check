@@ -1,4 +1,4 @@
-name: 'abap2UI5 view-check'
+name: 'abap2UI5-linter'
 description: 'Validate abap2UI5 views: UI5 version/deprecation property gate + headless render smoke — no SAP system needed.'
 branding:
   icon: 'check-circle'
@@ -22,12 +22,12 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version: 22
-    - name: Install view-check
+    - name: Install abap2UI5-linter
       shell: bash
       run: npm ci --prefix "${{ github.action_path }}"
     - name: Install Chromium
       shell: bash
       run: npx --prefix "${{ github.action_path }}" playwright install chromium --with-deps
-    - name: Run view-check
+    - name: Run abap2UI5-linter
       shell: bash
       run: node "${{ github.action_path }}/cli.mjs" ${{ inputs.paths }} --min-ui5 "${{ inputs['min-ui5'] }}" ${{ inputs.flags }}

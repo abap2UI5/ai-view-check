@@ -1,16 +1,17 @@
 {
-  "name": "@abap2ui5/view-check",
+  "name": "@abap2ui5/linter",
   "version": "0.1.0",
   "description": "Validate abap2UI5 views without an SAP system: UI5 version/deprecation property gate + headless render smoke.",
   "type": "module",
   "bin": {
-    "view-check": "cli.mjs"
+    "abap2ui5-linter": "cli.mjs"
   },
   "exports": {
     ".": "./lib/index.mjs",
     "./reconstruct": "./lib/reconstruct.mjs",
     "./properties": "./lib/properties.mjs",
-    "./render": "./lib/render.mjs"
+    "./render": "./lib/render.mjs",
+    "./abap-rules": "./lib/abap-rules.mjs"
   },
   "files": [
     "cli.mjs",
@@ -22,17 +23,17 @@
   "scripts": {
     "check": "node cli.mjs",
     "test": "node test/run.mjs",
-    "generate-properties": "node scripts/generate-properties.mjs"
+    "generate-metadata": "node scripts/generate-metadata.mjs"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/abap2UI5/ai-view-check.git"
+    "url": "git+https://github.com/abap2UI5/abap2UI5-linter.git"
   },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/abap2UI5/abap2UI5/issues"
   },
-  "homepage": "https://github.com/abap2UI5/ai-view-check#readme",
+  "homepage": "https://github.com/abap2UI5/abap2UI5-linter#readme",
   "dependencies": {
     "@openui5/sap.f": "1.150.0",
     "@openui5/sap.m": "1.150.0",
