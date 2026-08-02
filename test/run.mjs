@@ -5,6 +5,8 @@
  *   good.clas.abap      reconstructs, no findings, renders clean
  *   post171.clas.abap   property gate: GenericTile.systemInfo @since 1.92
  *   broken.clas.abap    render gate: typo property + unknown control
+ *   structure.clas.abap unknown control/property/aggregation, bad enum and
+ *                       numeric values, 0..1 overfilled, excess shut( )
  *   sample.view.xml     raw XML path: no findings, renders clean
  */
 import path from 'path';
@@ -21,7 +23,7 @@ const assert = (cond, msg) => {
 };
 
 const results = await checkFiles(
-  [f('good.clas.abap'), f('post171.clas.abap'), f('broken.clas.abap'), f('sample.view.xml')],
+  [f('good.clas.abap'), f('post171.clas.abap'), f('broken.clas.abap'), f('structure.clas.abap'), f('sample.view.xml')],
 );
 const by = (n) => results.find((r) => r.file.endsWith(n));
 
@@ -41,6 +43,22 @@ assert(broken.renderErrors.some((e) => /textt|NoSuchControl/i.test(e)),
   `broken: error names the defect (${(broken.renderErrors[0] || '').slice(0, 80)})`);
 assert(broken.findings.some((x) => x.type === 'unknown-control' && x.control === 'sap.m.NoSuchControl'),
   'broken: property gate flags the typo control without a browser');
+
+const struct = by('structure.clas.abap');
+const has = (type, pred = () => true) => struct.findings.some((f) => f.type === type && pred(f));
+assert(has('unknown-control', (f) => f.control === 'sap.m.Buton'),
+  'structure: unknown control flagged');
+assert(has('unknown-property', (f) => f.control === 'sap.m.Button' && f.member === 'typ'),
+  'structure: unknown property flagged');
+assert(has('invalid-property-value', (f) => f.member === 'type' && f.allowed?.includes('Emphasized')),
+  'structure: enum value outside the allowed set flagged, with the allowed values');
+assert(has('invalid-property-value', (f) => f.member === 'percentValue' && f.memberType === 'float'),
+  'structure: non-numeric value for a float property flagged');
+assert(has('unknown-aggregation', (f) => f.control === 'sap.m.Page' && f.member === 'contentt'),
+  'structure: unknown aggregation flagged');
+assert(has('too-many-children', (f) => f.member === 'customHeader' && f.count === 2),
+  'structure: second child in a 0..1 aggregation flagged');
+assert(has('excess-shut'), 'structure: shut( ) past the root flagged (asserts at runtime)');
 
 const xml = by('sample.view.xml');
 assert(xml.kind === 'xml', 'xml: raw view detected');

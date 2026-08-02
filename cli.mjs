@@ -74,7 +74,18 @@ for (const r of results) {
     if (f.type === 'unknown-control') console.log(`      control ${f.control} does not exist in UI5 — typo?`);
     else if (f.type === 'control-too-new') console.log(`      control ${f.control} is @since ${f.since} — newer than the ${f.minUi5} floor`);
     else if (f.type === 'control-deprecated') console.log(`      control ${f.control} is deprecated (${String(f.deprecated).slice(0, 80)})`);
-    else console.log(`      ${f.control} ${f.member} is @since ${f.since} — newer than the ${f.minUi5} floor`);
+    else if (f.type === 'unknown-property') console.log(`      ${f.control} has no property/event/association ${f.member} — typo?`);
+    else if (f.type === 'unknown-aggregation') console.log(`      ${f.control} has no aggregation ${f.member} — typo?`);
+    else if (f.type === 'invalid-property-value') {
+      const allowed = f.allowed ? `allowed: ${f.allowed.join(', ')}` : `expected ${f.memberType}`;
+      console.log(`      ${f.control} ${f.member}="${f.value}" is not a valid value (${allowed})`);
+    } else if (f.type === 'invalid-aggregation-child') {
+      console.log(`      ${f.control} is not allowed in ${f.parentControl} ${f.member} (expects ${f.expected})`);
+    } else if (f.type === 'too-many-children') {
+      console.log(`      ${f.control} ${f.member} takes one child, ${f.count} given`);
+    } else if (f.type === 'excess-shut') {
+      console.log('      one shut( ) more than the tree is deep — asserts at runtime');
+    } else console.log(`      ${f.control} ${f.member} is @since ${f.since} — newer than the ${f.minUi5} floor`);
   }
   for (const e of r.renderErrors) console.log(`      render: ${e.slice(0, 220)}`);
   if (opt.verbose) for (const n of r.notes) console.log(`      note: ${n}`);

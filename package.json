@@ -22,7 +22,7 @@
   "scripts": {
     "check": "node cli.mjs",
     "test": "node test/run.mjs",
-    "generate-properties": "node scripts/generate-properties.mjs"
+    "generate-metadata": "node scripts/generate-metadata.mjs"
   },
   "repository": {
     "type": "git",

@@ -7,13 +7,26 @@ generated ports of the official UI5 demo kit samples.
 
 Two gates:
 
-1. **Property gate** — every control and every written property/aggregation/
-   association/event in the view is resolved against a UI5 metadata snapshot
-   (925 controls, member `@since` via the parent chain, control-level
-   `@since`/`@deprecated`). A member newer than your UI5 floor (default
-   **1.71**), a deprecated control, or a control that does not exist at all
-   in a covered UI5 library (`sap.m.Shell2` — a typo) is a finding; custom
-   namespaces stay out of scope.
+1. **Property gate** — everything the view writes is resolved against a UI5
+   metadata snapshot (985 controls with their full member lists and types,
+   219 enums, generated from the OpenUI5 sources). It reports:
+
+   | Finding | Example |
+   | --- | --- |
+   | `unknown-control` | `sap.m.Shell2` — no such control |
+   | `unknown-property` | `Button typ="…"` — no such property/event/association |
+   | `invalid-property-value` | `Button type="Emphasised"` — outside `sap.m.ButtonType`; also non-numeric `int`/`float` and non-boolean values |
+   | `unknown-aggregation` | `Page contentt` — no such aggregation |
+   | `too-many-children` | two controls in a 0..1 aggregation |
+   | `invalid-aggregation-child` | a control the aggregation's type does not accept |
+   | `control-too-new` / `member-too-new` | newer than your UI5 floor (default **1.71**) |
+   | `control-deprecated` | deprecated in current UI5 |
+   | `excess-shut` | one `shut( )` more than the builder tree is deep — asserts at runtime |
+
+   Bindings and expressions are never value-checked (their value is a
+   runtime matter), custom namespaces stay out of scope, and a control
+   whose inheritance chain leaves the snapshot is never reported as
+   missing a member — no guessing.
 2. **Render gate** — the view is loaded with a real `XMLView.create` in
    headless Chromium against the OpenUI5 runtime served locally from the
    `@openui5/*` npm packages, with UI5 *future mode* active — so a typo'd
@@ -87,11 +100,15 @@ natural place to surface findings as editor diagnostics.
 
 ## Data
 
-`data/properties.json` is generated from the OpenUI5 sources (control-level
-and member-level JSDoc) — regenerate against a checkout with:
+`data/properties.json` is generated from the OpenUI5 control sources — per
+control the parent, class-level `@since`/`@deprecated`, interfaces, the
+default aggregation and every declared member with its type, plus the enum
+tables. The `@openui5/*` packages this repo already depends on ship those
+sources, so a plain regenerate needs no OpenUI5 clone:
 
 ```sh
-OPENUI5_DIR=/path/to/openui5 npm run generate-properties
+npm run generate-metadata                              # from node_modules
+OPENUI5_DIR=/path/to/openui5 npm run generate-metadata # from a checkout
 ```
 
 ## Credits
