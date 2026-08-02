@@ -7,11 +7,17 @@
  *   broken.clas.abap    render gate: typo property + unknown control
  *   structure.clas.abap unknown control/property/aggregation, bad enum and
  *                       numeric values, 0..1 overfilled, excess shut( )
+ *   dumps.clas.abap     builder calls z2ui5_cl_ai_xml ASSERTs on
+ *   rowpaths.clas.abap  relative binding paths inside a bound aggregation
+ *   nested.clas.abap    nested structures and nested aggregation bindings
  *   sample.view.xml     raw XML path: no findings, renders clean
  */
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { checkFiles } from '../lib/index.mjs';
+import { checkAbapSource, checkFiles } from '../lib/index.mjs';
+import { prepareAbap } from '../lib/reconstruct.mjs';
+import { severityOf } from '../lib/findings.mjs';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const f = (n) => path.join(FIX, n);
@@ -86,6 +92,12 @@ const rules = (await checkFiles([f('abaprules.clas.abap')], { render: false }))[
 const hasR = (t, pred = () => true) => rules.findings.some((x) => x.type === t && pred(x));
 assert(hasR('obsolete-binder', (x) => x.member === '_bind_edit'),
   'abap rules: _bind_edit reported as obsolete (use _bind)');
+// ... except where z2ui5_if_client itself says to keep using it: _bind has
+// no custom_mapper_back/custom_filter_back
+assert(!checkAbapSource(
+  'client->_bind_edit( val = name custom_mapper_back = mapper )', { render: false }
+).findings.some((x) => x.type === 'obsolete-binder'),
+'abap rules: _bind_edit is not obsolete where it carries custom_mapper_back');
 assert(hasR('binding-to-local', (x) => x.member === 'lv_local'),
   'abap rules: a local variable bound - lost after the roundtrip');
 assert(hasR('event-without-handler', (x) => x.value === 'NO_HANDLER'),
@@ -114,6 +126,163 @@ assert(hasV('collection-bound-to-property', (x) => x.member === 'headerText'),
   'view rules: a table bound to a scalar property');
 assert(!hasV('invalid-expression-binding'),
   'view rules: a well-formed expression binding is not flagged');
+
+// the builder ASSERTs the app never survives: a( ) with nothing to attach it
+// to, and one attribute name written twice on the same control
+const dumps = (await checkFiles([f('dumps.clas.abap')], { render: false }))[0];
+const hasD = (t, pred = () => true) => dumps.findings.some((x) => x.type === t && pred(x));
+assert(hasD('attribute-without-element', (x) => x.member === 'title'),
+  'dumps: a( ) on the bare factory root - z2ui5_cl_ai_xml asserts');
+assert(hasD('duplicate-property', (x) => x.member === 'text' && x.control === 'Button'),
+  'dumps: the same attribute set twice on one control - z2ui5_cl_ai_xml asserts');
+assert(dumps.docs[0].split('text="').length === 2,
+  'dumps: the refused duplicate is not carried into the reconstructed XML');
+
+// every finding carries where it came from, what it means and how bad it is -
+// so an editor can place it and a build can decide on it
+const posSrc = fs.readFileSync(f('dumps.clas.abap'), 'utf8').split('\n');
+const dup = dumps.findings.find((x) => x.type === 'duplicate-property');
+assert(dup.line > 0 && posSrc[dup.line - 1].includes('Save and close'),
+  `dumps: the finding points at the SECOND text attribute (line ${dup.line})`);
+assert(posSrc[dup.line - 1].slice(dup.column - 1).startsWith('->a('),
+  `dumps: the column points at the a( ) call itself (col ${dup.column})`);
+assert(dup.severity === 'error' && typeof dup.message === 'string' && dup.message.length > 10,
+  'findings: severity and a ready-made message travel with the finding');
+
+// severity is the linter's judgement, not the caller's guesswork
+assert(severityOf({ type: 'unknown-control' }) === 'error',
+  'severity: a control that does not exist breaks the app - error');
+assert(severityOf({ type: 'control-too-new' }) === 'warning',
+  'severity: the version floor is a portability warning');
+assert(severityOf({ type: 'event-without-handler' }) === 'hint',
+  'severity: an unhandled event is a hint - the roundtrip alone may be the point');
+assert(severityOf({ type: 'brand-new-rule-nobody-classified' }) === 'error',
+  'severity: an unclassified type stays loud rather than being silently dropped');
+
+// a relative {NAME} inside a bound aggregation addresses the ROW - with the
+// row's shape known from the class's TYPES, a typo'd column is catchable
+const rows = (await checkFiles([f('rowpaths.clas.abap')], { render: false }))[0];
+const rowPathFindings = rows.findings.filter((x) => x.type === 'unknown-binding-path');
+assert(rowPathFindings.length === 1 && rowPathFindings[0].value === 'CARID',
+  `rows: the typo'd row field is the only one reported (${rowPathFindings.map((x) => x.value).join(', ')})`);
+assert(rowPathFindings[0].context === '/T_FLIGHTS',
+  'rows: the finding names the aggregation binding the row came from');
+assert(!rows.findings.some((x) => x.value === 'SEATSMAX'),
+  'rows: a declared but unseeded field is part of the row - an ABAP structure always has all of them');
+assert(!rows.findings.some((x) => x.value === 'CARRID'),
+  'rows: a column header under `columns` is not in the row context and is left alone');
+
+// a nested aggregation binding moves the context DOWN - including the
+// complex {path: '...'} form the templates actually use
+const nested = (await checkFiles([f('nested.clas.abap')], { render: false }))[0];
+const nestedPaths = nested.findings.filter((x) => x.type === 'unknown-binding-path');
+assert(nestedPaths.length === 1 && nestedPaths[0].value === 'EXPENSE'
+  && nestedPaths[0].context === 'ELEMENTS',
+  `nested: inside the inner list only its own row fields exist (${nestedPaths.map((x) => x.value).join(', ')})`);
+assert(!nested.findings.some((x) => String(x.value).startsWith('AMOUNT/')),
+  'nested: a path through a nested structure resolves');
+
+// the model handed to the RENDERER stays what a seed actually sets: a field
+// the class fills in code cannot be followed statically, and inventing an
+// empty string for it makes UI5 strict mode reject a good view
+const prep = prepareAbap(fs.readFileSync(f('nested.clas.abap'), 'utf8'));
+assert(!('ELEMENTS' in prep.model.T_ROWS[0]) && 'ELEMENTS' in prep.modelShape.T_ROWS[0],
+  'model: the unseeded field is in the shape the gate asks about, not in the render model');
+assert(prep.model.T_ROWS[0].AMOUNT.SIZE === 560,
+  'model: a nested structure seed parses as one structure, not as an empty table');
+
+// no row shape, no verdict: a table of a type the class does not declare
+// could have any field, so nothing there is reported
+const opaque = `CLASS zcl_x DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES z2ui5_if_app.
+  PRIVATE SECTION.
+    DATA t_flights TYPE STANDARD TABLE OF sflight.
+ENDCLASS.
+CLASS zcl_x IMPLEMENTATION.
+  METHOD z2ui5_if_app~main.
+    DATA(view) = z2ui5_cl_ai_xml=>factory( ).
+    view->open( n = \`View\` ns = \`mvc\`
+        )->a( n = \`xmlns\`     v = \`sap.m\`
+        )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+        )->open( \`List\`
+            )->a( n = \`items\` v = client->_bind( t_flights )
+            )->open( \`items\`
+                )->leaf( \`StandardListItem\`
+                    )->a( n = \`title\` v = \`{ANYTHING_AT_ALL}\`
+        )->shut( )->shut( )->shut( ).
+    client->view_display( view->stringify( ) ).
+  ENDMETHOD.
+ENDCLASS.`;
+assert(!checkAbapSource(opaque, { render: false }).findings
+  .some((x) => x.type === 'unknown-binding-path'),
+  'rows: nothing is claimed about a row type the class does not declare');
+
+// event parameters an app reads back ($parameters>/name) are members of the
+// control like any other - and they are resolved PER EVENT, because two
+// events of one control can declare the same name with different histories
+const withEvent = (control, event, param) => checkAbapSource(`
+  DATA(view) = z2ui5_cl_ai_xml=>factory( ).
+  view->open( n = \`View\` ns = \`mvc\`
+      )->a( n = \`xmlns\`     v = \`sap.m\`
+      )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+      )->leaf( \`${control}\`
+          )->a( n = \`${event}\` v = client->_event( val = \`GO\` t_arg = VALUE #( ( \`\${$parameters>/${param}}\` ) ) ) ).
+  client->view_display( view->stringify( ) ).`, { render: false })
+  .findings.filter((x) => x.type === 'event-parameter-too-new');
+
+assert(withEvent('SearchField', 'search', 'searchButtonPressed')
+  .some((x) => x.member === 'searchButtonPressed' && x.since === '1.114'),
+  'event params: one newer than the floor is reported');
+assert(!withEvent('SearchField', 'search', 'query').length,
+  'event params: one without an @since predates version tracking and is not');
+assert(withEvent('Menu', 'beforeClose', 'item').length === 1,
+  'event params: Menu beforeClose/item is @since 1.136');
+assert(!withEvent('Menu', 'itemSelected', 'item').length,
+  'event params: Menu itemSelected/item is NOT - same name, different event, and only the flat member map confuses the two');
+
+// an aggregation directly inside another aggregation: invalid XML, and the
+// signature of a missing shut( ) - the port that put <footer> inside <columns>
+// only ever surfaced as "failed to load sap/ui/table/footer.js" in the browser
+const view = (inner) => `
+  DATA(view) = z2ui5_cl_ai_xml=>factory( ).
+  view->open( n = \`View\` ns = \`mvc\`
+      )->a( n = \`xmlns\`     v = \`sap.m\`
+      )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+      )->a( n = \`xmlns:my\`  v = \`my.custom.lib\`
+      ${inner}.
+  client->view_display( view->stringify( ) ).`;
+const misplaced = (src) => checkAbapSource(src, { render: false })
+  .findings.filter((x) => x.type === 'aggregation-in-aggregation');
+
+assert(misplaced(view('  )->open( `Table` )->open( `columns` )->leaf( `Column` )->open( `footer` )'))
+  .some((x) => x.member === 'footer' && x.parentAggregation === 'columns'),
+  'missing shut: an aggregation inside an aggregation is reported');
+assert(!misplaced(view('  )->open( `Table` )->open( `columns` )->open( `Column` )->open( `header` )')).length,
+  'missing shut: a well-formed aggregation/control/aggregation nesting is not');
+assert(!misplaced(view('  )->open( `Table` )->open( `columns` )->open( n = `Thing` ns = `my` )->open( `content` )')).length,
+  'missing shut: a control from an unknown library still counts as a control in between');
+
+// a tag in a foreign namespace (raw XHTML, a custom-control library) is not
+// a UI5 aggregation of its parent - it is outside what the metadata can judge
+const foreign = checkAbapSource(`
+  DATA(view) = z2ui5_cl_ai_xml=>factory( ).
+  view->open( n = \`View\` ns = \`mvc\`
+      )->a( n = \`xmlns\`      v = \`sap.m\`
+      )->a( n = \`xmlns:mvc\`  v = \`sap.ui.core.mvc\`
+      )->a( n = \`xmlns:html\` v = \`http://www.w3.org/1999/xhtml\`
+      )->open( \`Panel\`
+          )->leaf( n = \`iframe\` ns = \`html\`
+              )->a( n = \`src\` v = \`https://example.org\` ).
+  client->view_display( view->stringify( ) ).`, { render: false });
+assert(!foreign.findings.some((x) => x.type === 'unknown-aggregation'),
+  'foreign namespace: html:iframe is left alone, not read as an aggregation of Panel');
+
+// positions in raw XML are just as exact as in a builder class
+const xmlPos = (await checkFiles([f('badvalue.view.xml')], { render: false }))[0];
+const bad = xmlPos.findings.find((x) => x.type === "invalid-property-value");
+assert(bad?.line === 4 && bad?.column === 15,
+  `xml: the invalid value is located at 4:15 (got ${bad?.line}:${bad?.column})`);
 
 const xml = by('sample.view.xml');
 assert(xml.kind === 'xml', 'xml: raw view detected');

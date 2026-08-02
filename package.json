@@ -11,7 +11,8 @@
     "./reconstruct": "./lib/reconstruct.mjs",
     "./properties": "./lib/properties.mjs",
     "./render": "./lib/render.mjs",
-    "./abap-rules": "./lib/abap-rules.mjs"
+    "./abap-rules": "./lib/abap-rules.mjs",
+    "./findings": "./lib/findings.mjs"
   },
   "files": [
     "cli.mjs",
