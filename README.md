@@ -54,16 +54,24 @@ Two gates:
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
    | `event-arg-unresolved` | a bare-brace `t_arg` literal (`` `{COL}` ``): the runtime sends it verbatim but only `$`-prefixed expressions are resolved by UI5, so `get_event_arg( )` receives an **empty** value with no error anywhere. Write `` `${COL}` `` (a template *starting* with a `{0}` placeholder is fine — that form is quoted) |
 
-Every finding carries a **severity**, a ready-made **message** and — where
-the gate could place it — the **line and column** in the file it came from:
+The name in the left column is the **rule id**: it is printed at the end of
+every reported line, it is the key in the `rules` block of the config file,
+and it is what a source directive names. Every finding also carries a
+**severity**, a ready-made **message** and — where the gate could place it —
+the **line and column** in the file it came from:
 
 ```
-FAIL  src/zcl_my_app.clas.abap  (1 doc(s))
-         20:9   error    a( n = `title` ) without an element to attach it to — z2ui5_cl_ai_xml asserts on that
-         31:18  error    text is set twice on the same control — z2ui5_cl_ai_xml asserts on that
-         44:22  warning  sap.m.GenericTile systemInfo is @since 1.92.0 — newer than the 1.71 floor
-         51:35  hint     event NO_HANDLER is raised but never handled — dead control, unless the roundtrip alone is intended
+src/zcl_my_app.clas.abap
+  20:9   error    a( n = `title` ) without an element to attach it to …            attribute-without-element
+  31:18  error    text is set twice on the same control …                          duplicate-property
+  44:22  warning  sap.m.GenericTile systemInfo is @since 1.92.0 …                   member-too-new
+  51:35  hint     event NO_HANDLER is raised but never handled …                    event-without-handler
+
+4 problems (2 errors, 1 warning, 1 hint)
+abap2ui5-linter: 12 file(s), 1 failing, 0 skipped (target SAPUI5 1.71, metadata from 1.150.0, failing on warning)
 ```
+
+Files with nothing to report are not printed.
 
 | Severity | Meaning |
 | --- | --- |
@@ -101,11 +109,53 @@ node cli.mjs src --allow sap.m.GenericTile.systemInfo   # accepted deviation
 node cli.mjs src --no-render              # property gate only (no browser)
 node cli.mjs src --fail-on error          # only real breakage fails CI
 node cli.mjs src --advisory               # report, never fail the build
-node cli.mjs src --json                   # machine-readable output (for tools)
+node cli.mjs src --quiet                  # errors only (the counts stay complete)
+node cli.mjs src --format json            # machine-readable output (for tools)
+node cli.mjs src --format markdown        # for a PR comment or a job summary
+node cli.mjs --version                    # version and script location
 ```
 
-Exit code 1 on any finding at or above `--fail-on` (default: `warning`) and
-on any render error — CI-ready.
+Installed, the binary is `abap2ui5-linter` — or `abap2ui5lint`, the short
+spelling that matches the config file name.
+
+| Exit code | |
+| --- | --- |
+| `0` | clean, or nothing above `--fail-on` |
+| `1` | a finding at or above `--fail-on` (default: `warning`), or a render error |
+| `2` | bad usage or a broken config file |
+
+`--format` takes `stylish` (the default shown above), `json` and `markdown`;
+`--json` is a shorthand for `--format json`. Inside GitHub Actions every
+finding is additionally emitted as a workflow command, so it shows up on the
+diff of the pull request rather than in the log only — `--no-annotate` turns
+that off, `--annotate` forces it on elsewhere.
+
+## Waiving a rule
+
+Three scopes, from narrow to wide:
+
+**One line** — a comment in the source, spelled the way ui5lint spells it and
+carried by whatever comment syntax the file has:
+
+```abap
+" abap2ui5lint-disable-next-line unknown-binding-path -- filled in a LOOP
+)->a( n = `text` v = `{PRICE}`
+```
+
+```xml
+<!-- abap2ui5lint-disable-next-line unknown-property -->
+```
+
+`-disable-line` waives the line the comment sits on, `-disable` … `-enable`
+waives a block. Naming no rule waives every rule; everything after `--` is a
+reason and is ignored — which is also what ends an XML comment, so the `-->`
+is never read as a rule id.
+
+**One repo** — the `rules` block of the config file (see below): switch a rule
+off, give it another severity, or exclude files from it.
+
+**One member** — `--allow sap.m.Avatar.displaySize` keeps using a control or
+member that is newer than the floor, without touching the rule itself.
 
 ### SAPUI5 or OpenUI5
 
@@ -139,24 +189,38 @@ or above the versions you target.
 ## Configuration file — `abap2ui5lint.jsonc`
 
 Pin the settings in the checked repo instead of repeating CLI flags — same
-idea as `abaplint.jsonc`. Discovery is eslint-style: `--config <file>` wins,
-otherwise the file is searched upward from the current directory and from
-each given path. Precedence per option: explicit CLI flag > config file >
-built-in default (`--no-config` ignores the file entirely).
+idea as `abaplint.jsonc`, and `abap2ui5lint.json` is discovered too.
+Discovery is eslint-style: `--config <file>` wins, otherwise the file is
+searched upward from the current directory and from each given path.
+Precedence per option: explicit CLI flag > config file > built-in default
+(`--no-config` ignores the file entirely).
 
 ```jsonc
 {
+  "$schema": "https://raw.githubusercontent.com/abap2UI5/abap2UI5-linter/main/data/abap2ui5lint.schema.json",
   "paths": ["src"],          // used when the CLI got no positional paths
   "ui5": "1.71",             // UI5 floor for the property gate
   "distribution": "sapui5",  // or "openui5"
   "failOn": "warning",       // error | warning | hint | never
   "render": true,            // false = skip the render gate (--no-render)
-  "allow": []                // e.g. ["sap.m.Avatar.displaySize"]
+  "allow": [],               // e.g. ["sap.m.Avatar.displaySize"]
+  "rules": {
+    "missing-accessibility": false,        // off
+    "member-deprecated": "hint",           // another severity
+    "event-without-handler": {             // both, plus file exclusions
+      "severity": "warning",
+      "exclude": ["/test/"]                // file regex, case insensitive
+    }
+  }
 }
 ```
 
-Unknown keys fail loudly (typo protection). The GitHub Action defers to the
-repo's config for every input you leave unset.
+The `$schema` line gives editors completion and validation for every key and
+every rule id — `data/abap2ui5lint.schema.json` is generated from the rule
+registry, so it can never drift from the linter (`npm run generate-schema`).
+
+Unknown keys — and unknown rule ids — fail loudly (typo protection). The
+GitHub Action defers to the repo's config for every input you leave unset.
 
 ## GitHub Action
 
@@ -174,6 +238,9 @@ jobs:
           flags: '--allow sap.m.GenericTile.systemInfo'
 ```
 
+Findings are annotated onto the pull request diff by default; set
+`annotations: false` to keep the log plain.
+
 ## Library
 
 ```js
@@ -185,18 +252,26 @@ const results = await checkFiles(['src/zcl_my_app.clas.abap']);
 ```
 
 `checkFiles`/`checkAbapSource`/`checkXmlSource` annotate their findings
-themselves. Anything driving the gates directly (`checkNodes`,
-`checkAbapRules`) gets the same from the `findings` subpath, so severity and
-wording are never reinvented per consumer:
+themselves and honour `rules` plus the source directives — pass `rules` (and,
+for `exclude`, the `file` the source came from) in the options. Anything
+driving the gates directly (`checkNodes`, `checkAbapRules`) gets the same from
+the `findings` subpath, so severity and wording are never reinvented per
+consumer:
 
 ```js
-import { annotate, severityOf, describe } from '@abap2ui5/linter/findings';
+import { annotate, applyRules, applyDirectives, RULES, severityOf, describe }
+  from '@abap2ui5/linter/findings';
 
-annotate(findings, source); // adds severity, message, line, column in place
+annotate(findings, source);                       // severity, message, line, column
+findings = applyRules(findings, rules, file);     // the repo's rules block
+findings = applyDirectives(findings, source);     // abap2ui5lint-disable-* comments
 ```
 
+`RULES` is the full rule-id registry. The `report` subpath holds the
+formatters (`formatStylish`, `formatJson`, `formatMarkdown`,
+`githubAnnotations`, `summarize`) if you want the same output elsewhere.
 `--json` output carries the annotated findings plus a `totals` count per
-severity.
+severity and a `problems` total.
 
 Consumers: the [ai-mcp](https://github.com/abap2UI5/ai-mcp) server exposes
 these gates as MCP tools for AI coding agents; the
@@ -235,6 +310,10 @@ sources, so a plain regenerate needs no OpenUI5 clone:
 npm run generate-metadata                              # from node_modules
 OPENUI5_DIR=/path/to/openui5 npm run generate-metadata # from a checkout
 ```
+
+`data/abap2ui5lint.schema.json` is generated too — from the rule registry in
+`lib/findings.mjs`, by `npm run generate-schema`. A new rule has to appear
+there, and `npm test` fails while the committed schema is stale.
 
 ## Credits
 

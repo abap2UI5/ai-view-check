@@ -1,0 +1,237 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://raw.githubusercontent.com/abap2UI5/abap2UI5-linter/main/data/abap2ui5lint.schema.json",
+  "title": "abap2ui5lint.jsonc",
+  "description": "Configuration for abap2UI5-linter (https://github.com/abap2UI5/abap2UI5-linter)",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "URL of this schema — editor completion only"
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Files or directories to check. Used only when the CLI got no positional paths."
+    },
+    "ui5": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+(\\.\\d+)?$",
+      "description": "The UI5 version the target system runs. Controls and members introduced later are reported; deprecations are reported once in effect at this version."
+    },
+    "minUi5": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+(\\.\\d+)?$",
+      "description": "Alias of \"ui5\"."
+    },
+    "distribution": {
+      "enum": [
+        "sapui5",
+        "openui5"
+      ],
+      "description": "Which distribution the target system serves. On \"openui5\", controls from SAPUI5-only libraries are reported."
+    },
+    "allow": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Control or control.member names accepted despite the version floor, e.g. \"sap.m.Avatar.displaySize\"."
+    },
+    "render": {
+      "type": "boolean",
+      "description": "false skips the render gate (no browser needed)."
+    },
+    "properties": {
+      "type": "boolean",
+      "description": "false skips the property gate."
+    },
+    "failOn": {
+      "enum": [
+        "hint",
+        "warning",
+        "error",
+        "never"
+      ],
+      "description": "Lowest severity that fails the build. Everything is always reported — this only decides the exit code."
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Per rule: false to switch it off, a severity string, or { severity, exclude }.",
+      "properties": {
+        "aggregation-in-aggregation": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'aggregation-in-aggregation' — default severity: error"
+        },
+        "attribute-without-element": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'attribute-without-element' — default severity: error"
+        },
+        "binding-for-event": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'binding-for-event' — default severity: error"
+        },
+        "binding-to-local": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'binding-to-local' — default severity: warning"
+        },
+        "collection-bound-to-property": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'collection-bound-to-property' — default severity: error"
+        },
+        "control-deprecated": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'control-deprecated' — default severity: warning"
+        },
+        "control-too-new": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'control-too-new' — default severity: warning"
+        },
+        "duplicate-aggregation": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'duplicate-aggregation' — default severity: error"
+        },
+        "duplicate-id": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'duplicate-id' — default severity: error"
+        },
+        "duplicate-property": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'duplicate-property' — default severity: error"
+        },
+        "event-arg-unresolved": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'event-arg-unresolved' — default severity: warning"
+        },
+        "event-for-property": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'event-for-property' — default severity: error"
+        },
+        "event-parameter-too-new": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'event-parameter-too-new' — default severity: warning"
+        },
+        "event-without-handler": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'event-without-handler' — default severity: hint"
+        },
+        "excess-shut": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'excess-shut' — default severity: error"
+        },
+        "invalid-aggregation-child": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'invalid-aggregation-child' — default severity: error"
+        },
+        "invalid-expression-binding": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'invalid-expression-binding' — default severity: error"
+        },
+        "invalid-property-value": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'invalid-property-value' — default severity: error"
+        },
+        "member-deprecated": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'member-deprecated' — default severity: warning"
+        },
+        "member-too-new": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'member-too-new' — default severity: warning"
+        },
+        "missing-accessibility": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'missing-accessibility' — default severity: hint"
+        },
+        "missing-required-aggregation": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'missing-required-aggregation' — default severity: warning"
+        },
+        "obsolete-binder": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'obsolete-binder' — default severity: warning"
+        },
+        "sapui5-only-control": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'sapui5-only-control' — default severity: error"
+        },
+        "too-many-children": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'too-many-children' — default severity: error"
+        },
+        "unconverted-abap-boolean": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'unconverted-abap-boolean' — default severity: error"
+        },
+        "undeclared-namespace": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'undeclared-namespace' — default severity: error"
+        },
+        "unknown-aggregation": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'unknown-aggregation' — default severity: error"
+        },
+        "unknown-binding-path": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'unknown-binding-path' — default severity: warning"
+        },
+        "unknown-control": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'unknown-control' — default severity: error"
+        },
+        "unknown-property": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'unknown-property' — default severity: error"
+        },
+        "view-never-displayed": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'view-never-displayed' — default severity: error"
+        }
+      }
+    }
+  },
+  "definitions": {
+    "rule": {
+      "anyOf": [
+        {
+          "type": "boolean",
+          "description": "false switches the rule off"
+        },
+        {
+          "enum": [
+            "hint",
+            "warning",
+            "error"
+          ],
+          "description": "severity override"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "severity": {
+              "enum": [
+                "hint",
+                "warning",
+                "error"
+              ],
+              "description": "severity override"
+            },
+            "exclude": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "format": "regex"
+              },
+              "description": "File regex patterns this rule is not applied to, case insensitive."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

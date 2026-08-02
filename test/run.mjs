@@ -361,7 +361,136 @@ assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0]
     'config: cli applies ui5/failOn from the discovered abap2ui5lint.jsonc');
   const off = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap'), '--no-config'], { encoding: 'utf8' });
   assert(/target SAPUI5 1\.71/.test(off), 'config: --no-config restores the defaults');
+
+  // the .json spelling is discovered too (abaplint.json / abaplint.jsonc)
+  const plain = path.join(dir, 'plain');
+  fs.mkdirSync(plain, { recursive: true });
+  fs.writeFileSync(path.join(plain, 'abap2ui5lint.json'), '{"ui5": "1.120"}');
+  assert(findConfig(plain) === path.join(plain, 'abap2ui5lint.json'),
+    'config: abap2ui5lint.json is discovered as well as .jsonc');
+
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ----------------------------------------------------------------- rules ----
+// per-rule off / severity / exclude, the abaplint-shaped `rules` block
+{
+  const { loadConfig } = await import('../lib/config.mjs');
+  const os = await import('node:os');
+  const src = fs.readFileSync(f('viewrules.clas.abap'), 'utf8');
+
+  const plain = checkAbapSource(src);
+  const has = (r, type) => r.findings.some((x) => x.type === type);
+  assert(has(plain, 'missing-accessibility') && has(plain, 'member-deprecated'),
+    'rules: the fixture reports the rules the overrides act on');
+
+  const off = checkAbapSource(src, { rules: { 'missing-accessibility': false } });
+  assert(!has(off, 'missing-accessibility') && has(off, 'member-deprecated'),
+    'rules: false switches a single rule off and leaves the rest alone');
+
+  const lowered = checkAbapSource(src, { rules: { 'member-deprecated': 'hint' } });
+  const dep = lowered.findings.find((x) => x.type === 'member-deprecated');
+  assert(dep.severity === 'hint' && severityOf(dep) === 'hint',
+    'rules: a severity string overrides the default, and severityOf reads it back');
+
+  const excluded = checkAbapSource(src, { rules: { 'duplicate-id': { exclude: ['viewrules'] } }, file: 'src/viewrules.clas.abap' });
+  assert(!has(excluded, 'duplicate-id'), 'rules: exclude drops the rule for a file the pattern matches');
+  const kept = checkAbapSource(src, { rules: { 'duplicate-id': { exclude: ['nothing'] } }, file: 'src/viewrules.clas.abap' });
+  assert(has(kept, 'duplicate-id'), 'rules: a non-matching exclude leaves the rule in place');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui5rules-'));
+  const write = (body) => { const p = path.join(dir, 'abap2ui5lint.jsonc'); fs.writeFileSync(p, body); return p; };
+  const throws = (body) => { try { loadConfig(write(body)); return ''; } catch (e) { return e.message; } };
+  assert(/unknown rule 'no-such-rule'/.test(throws('{"rules": {"no-such-rule": false}}')),
+    'rules: an unknown rule id in the config fails loudly');
+  assert(/must be a severity/.test(throws('{"rules": {"duplicate-id": "fatal"}}')),
+    'rules: an unknown severity fails loudly');
+  assert(/unknown key 'sevrity'/.test(throws('{"rules": {"duplicate-id": {"sevrity": "hint"}}}')),
+    'rules: a typo inside a rule object fails loudly');
+  assert(loadConfig(write('{"$schema": "x", "rules": {"duplicate-id": {"severity": "hint", "exclude": ["/test/"]}}}')).rules['duplicate-id'].severity === 'hint',
+    'rules: $schema is accepted and a full rule object survives loading');
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ------------------------------------------------------------ directives ----
+// " abap2ui5lint-disable-next-line <rule>, -disable-line, -disable/-enable
+{
+  const src = fs.readFileSync(f('directives.clas.abap'), 'utf8');
+  const r = checkAbapSource(src);
+  const props = r.findings.filter((x) => x.type === 'unknown-property').map((x) => x.member);
+  assert(props.join(',') === 'typo2,typo5',
+    `directives: only the unwaived typos survive (got ${props.join(',') || 'none'})`);
+
+  const { parseDirectives, applyDirectives } = await import('../lib/findings.mjs');
+  assert(parseDirectives('nothing to see here') === null,
+    'directives: a source without a directive costs nothing');
+  const d = parseDirectives('" abap2ui5lint-disable-next-line duplicate-id\nx\ny');
+  assert(d.suppresses(2, 'duplicate-id') && !d.suppresses(2, 'unknown-control') && !d.suppresses(3, 'duplicate-id'),
+    'directives: -disable-next-line is scoped to the next line and to the named rule');
+  const all = parseDirectives('<!-- abap2ui5lint-disable-next-line -->\nx');
+  assert(all.suppresses(2, 'anything'), 'directives: an XML comment without a rule id waives every rule');
+  const reason = parseDirectives('" abap2ui5lint-disable-line duplicate-id -- known, tracked in #42');
+  assert(reason.suppresses(1, 'duplicate-id') && !reason.suppresses(1, 'known'),
+    'directives: the reason after -- is not read as a rule id');
+  assert(applyDirectives([{ type: 'duplicate-id' }], '" abap2ui5lint-disable\n').length === 1,
+    'directives: a finding the gate could not place is never suppressed');
+}
+
+// ---------------------------------------------------------------- report ----
+{
+  const cp = await import('node:child_process');
+  const CLI = path.join(FIX, '..', '..', 'cli.mjs');
+  const run = (args, env = {}) => {
+    try { return cp.execFileSync('node', [CLI, ...args], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', ...env } }); }
+    catch (e) { return e.stdout ?? ''; }
+  };
+  const dumps = f('dumps.clas.abap');
+
+  const stylish = run([dumps, '--no-render']);
+  assert(/duplicate-property\s*$/m.test(stylish), 'report: every line ends in its rule id');
+  assert(/^2 problems \(2 errors, 0 warnings, 0 hints\)$/m.test(stylish), 'report: the problem count reads like ui5lint');
+  assert(!/\bpass\b/.test(run([f('good.clas.abap'), '--no-render'])) &&
+    /Success! No findings detected\./.test(run([f('good.clas.abap'), '--no-render'])),
+    'report: a clean file is not printed, only the success line');
+
+  const quiet = run([f('viewrules.clas.abap'), '--no-render', '--quiet']);
+  assert(!/\bhint\b.*missing-accessibility/.test(quiet) && /2 hints\)/.test(quiet),
+    'report: --quiet hides the non-errors but still counts them');
+
+  const json = JSON.parse(run([dumps, '--no-render', '--json']));
+  assert(json.problems === 2 && json.totals.error === 2 && json.results[0].findings[0].type,
+    'report: --json carries totals, problems and the annotated findings');
+  assert(JSON.parse(run([dumps, '--no-render', '--format', 'json'])).problems === 2,
+    'report: --format json is the same thing');
+
+  const md = run([dumps, '--no-render', '--format', 'markdown']);
+  assert(/\| Location \| Severity \| Message \| Rule \|/.test(md) && /`duplicate-property`/.test(md),
+    'report: --format markdown emits a table per file');
+
+  const annotated = run([dumps, '--no-render'], { GITHUB_ACTIONS: 'true' });
+  assert(/^::error file=.*dumps\.clas\.abap,line=31,col=18,title=abap2ui5-linter\(duplicate-property\)::/m.test(annotated),
+    'report: inside GitHub Actions the findings are annotated onto the diff');
+  assert(!/^::/m.test(run([dumps, '--no-render', '--no-annotate'], { GITHUB_ACTIONS: 'true' })),
+    'report: --no-annotate switches that off again');
+  assert(!/^::/m.test(run([dumps, '--no-render'])), 'report: no annotations outside a workflow');
+
+  assert(/^abap2ui5-linter \d+\.\d+\.\d+ \(.*cli\.mjs\)$/m.test(run(['--version'])),
+    'report: --version prints version and script location');
+  let usage = '';
+  try { cp.execFileSync('node', [CLI, '--nope'], { encoding: 'utf8', stdio: 'pipe' }); }
+  catch (e) { usage = e.stderr ?? ''; }
+  assert(/unknown option '--nope'/.test(usage), 'report: an unknown flag is refused, not read as a path');
+}
+
+// ---------------------------------------------------------------- schema ----
+{
+  const { render, SCHEMA_FILE } = await import('../scripts/generate-schema.mjs');
+  const committed = fs.readFileSync(SCHEMA_FILE, 'utf8');
+  assert(committed === render(), 'schema: data/abap2ui5lint.schema.json is in sync (npm run generate-schema)');
+  const schema = JSON.parse(committed);
+  const { RULES } = await import('../lib/findings.mjs');
+  assert(Object.keys(schema.properties.rules.properties).length === RULES.length && RULES.includes('duplicate-id'),
+    'schema: every rule id is offered to the editor');
 }
 
 console.log(failed ? `\n${failed} assertion(s) failed` : '\nall assertions passed');

@@ -13,10 +13,11 @@ and GitHub Action, no SAP system required.
 ```bash
 npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
-npm test                          # test/run.mjs, home-grown asserts, ~83 assertions
+npm test                          # test/run.mjs, home-grown asserts, ~113 assertions
+npm run generate-schema           # after adding a rule - the test gates the drift
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
 # settings can be pinned in the checked repo's abap2ui5lint.jsonc (lib/config.mjs;
-# CLI flag > config > default; unknown keys fail loudly)
+# CLI flag > config > default; unknown keys and unknown rule ids fail loudly)
 ```
 
 `npm test` fails with an unhelpful Chromium error after a bare `npm ci` —
@@ -39,8 +40,12 @@ the playwright install is mandatory, not optional. CI
 
 ## Rule taxonomy — where each finding type is emitted
 
-There is **no rule registry**: finding types are string literals at their
-emit sites. Current inventory (grep the id to find the exact line):
+A finding's `type` **is its rule id** — printed at the end of every reported
+line, keyed in the config's `rules` block, nameable in a source directive and
+offered by the JSON schema. The registry is `SEVERITY_BY_TYPE` in
+`lib/findings.mjs` (exported as `RULES`); a type missing from it is not a
+known rule and the config will refuse it. Emit sites (grep the id to find the
+exact line):
 
 | Emitting file | Finding types |
 | --- | --- |
@@ -48,14 +53,40 @@ emit sites. Current inventory (grep the id to find the exact line):
 | `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `view-never-displayed` |
 | `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
-| `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc` loader (discovery, validation, precedence). New config keys go through its KNOWN set + a run.mjs assertion |
-| `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, messages). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
+| `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc`/`.json` loader (discovery, validation, precedence, the `rules` block). New config keys go through its KNOWN set + a run.mjs assertion |
+| `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, `RULES`, messages) plus the two things a repo can say back to it: `applyRules` (the config's `rules` block) and `applyDirectives` (`abap2ui5lint-disable-*` comments). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
+| `lib/report.mjs` | no findings — the **output layer**: `summarize`, the `stylish`/`json`/`markdown` formatters and the GitHub workflow-command annotations. The CLI only parses flags and picks one |
 
-**A new rule moves three places together** — forgetting one has happened:
+**A new rule moves four places together** — forgetting one has happened:
 
 1. the emit site in `lib/`,
-2. a fixture in `test/fixtures/` + assertions in `test/run.mjs`,
-3. a row in the README finding-type table.
+2. its severity in `SEVERITY_BY_TYPE` (`lib/findings.mjs`) — that is also what
+   registers it as a rule id,
+3. a fixture in `test/fixtures/` + assertions in `test/run.mjs`,
+4. a row in the README finding-type table.
+
+Then `npm run generate-schema` and commit `data/abap2ui5lint.schema.json`
+with it — `npm test` fails while that file is stale.
+
+## Deliberate kinship with ui5lint and abaplint
+
+The audience is the audience of [UI5/linter](https://github.com/UI5/linter)
+and [abaplint](https://github.com/abaplint/abaplint), so the surface is
+theirs on purpose and a change that drifts from it needs a reason:
+
+| Ours | Modelled on |
+| --- | --- |
+| `path` heading, `line:col severity message rule-id`, `N problems (…)`, `Success! No findings detected.` | ui5lint's stylish formatter |
+| `--format stylish\|json\|markdown`, `--quiet`, `--version`, `--fix`-shaped flag names | ui5lint |
+| `abap2ui5lint-disable-next-line`/`-disable-line`/`-disable`/`-enable`, reason after `--` | ui5lint directives |
+| `abap2ui5lint.jsonc`, `rules: { id: false \| severity \| { severity, exclude } }`, JSON schema for editor completion | abaplint's config and `BasicRuleConfig` |
+| bin alias `abap2ui5lint`, exit codes 0/1/2 | both |
+| workflow-command annotations on the PR diff | abaplint's `actions-abaplint` |
+
+Known deliberate divergences: severities are `error/warning/hint` (not
+abaplint's `Error/Warning/Info` — `hint` is already load-bearing across
+consumers), rule ids are kebab-case like ui5lint's rather than abaplint's
+snake_case, and there is no `--fix` yet.
 
 Known test-coverage debt (assert these when touching the area):
 `invalid-aggregation-child`, `sapui5-only-control` and `open-levels`
@@ -122,7 +153,10 @@ the README).
   runtime** (`vscode-extension/src/rendergate.ts`) — merging a change to
   `cli.mjs`, `lib/`, `data/` or `package.json` silently updates what every
   installed extension fetches next. There is no version negotiation; treat
-  `lib/` layout and CLI flags as a public contract.
+  `lib/` layout and CLI flags as a public contract. The **`--json` shape is
+  part of that contract** — it may grow keys (`problems` was added that way),
+  never lose or rename them. The human `stylish` output is not: it is for
+  people, and it changed shape once already.
 - The VS Code extension additionally pins a **linter commit SHA** in its
   `package-lock.json` for the bundled property gate — a new finding type is
   invisible in the editor until that lock is bumped there.
