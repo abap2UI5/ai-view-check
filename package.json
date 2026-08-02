@@ -10,7 +10,8 @@
     ".": "./lib/index.mjs",
     "./reconstruct": "./lib/reconstruct.mjs",
     "./properties": "./lib/properties.mjs",
-    "./render": "./lib/render.mjs"
+    "./render": "./lib/render.mjs",
+    "./abap-rules": "./lib/abap-rules.mjs"
   },
   "files": [
     "cli.mjs",
