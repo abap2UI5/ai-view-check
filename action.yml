@@ -12,6 +12,10 @@ inputs:
     description: 'UI5 floor for the property gate'
     required: false
     default: '1.71'
+  fail-on:
+    description: 'Lowest severity that fails the job: error, warning, hint or never'
+    required: false
+    default: 'warning'
   flags:
     description: 'Extra CLI flags, e.g. "--no-render --allow sap.m.Avatar.displaySize"'
     required: false
@@ -30,4 +34,4 @@ runs:
       run: npx --prefix "${{ github.action_path }}" playwright install chromium --with-deps
     - name: Run abap2UI5-linter
       shell: bash
-      run: node "${{ github.action_path }}/cli.mjs" ${{ inputs.paths }} --min-ui5 "${{ inputs['min-ui5'] }}" ${{ inputs.flags }}
+      run: node "${{ github.action_path }}/cli.mjs" ${{ inputs.paths }} --min-ui5 "${{ inputs['min-ui5'] }}" --fail-on "${{ inputs['fail-on'] }}" ${{ inputs.flags }}

@@ -25,17 +25,21 @@
  *                      a shorthand.
  *   --allow <name>     allow a control or control.member despite the floor
  *                      (repeatable, e.g. --allow sap.m.Avatar.displaySize)
+ *   --fail-on <level>  lowest severity that fails the build: error, warning
+ *                      (default), hint, or never. Every finding is always
+ *                      reported - this only decides the exit code.
  *   --no-render        skip the render gate (no browser/@openui5 needed)
  *   --no-properties    skip the property gate
- *   --advisory         report only, always exit 0 (default: exit 1 on findings)
+ *   --advisory         report only, always exit 0 (same as --fail-on never)
  *   --verbose          print reconstruction notes
  */
 import path from 'path';
 import { checkFiles, collectFiles } from './lib/index.mjs';
 import { snapshotVersion } from './lib/properties.mjs';
+import { SEVERITIES, severityRank, severityOf, describe } from './lib/findings.mjs';
 
 const args = process.argv.slice(2);
-const opt = { minUi5: '1.71', distribution: 'sapui5', allow: [], render: true, properties: true, advisory: false, verbose: false, json: false };
+const opt = { minUi5: '1.71', distribution: 'sapui5', allow: [], render: true, properties: true, failOn: 'warning', verbose: false, json: false };
 const paths = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -45,11 +49,19 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--allow') opt.allow.push(args[++i]);
   else if (a === '--no-render') opt.render = false;
   else if (a === '--no-properties') opt.properties = false;
-  else if (a === '--advisory') opt.advisory = true;
+  else if (a === '--advisory') opt.failOn = 'never';
+  else if (a === '--fail-on') {
+    const level = String(args[++i]).toLowerCase();
+    if (![...SEVERITIES, 'never'].includes(level)) {
+      console.error(`abap2ui5-linter: --fail-on takes ${SEVERITIES.join(', ')} or never (got '${level}')`);
+      process.exit(2);
+    }
+    opt.failOn = level;
+  }
   else if (a === '--verbose') opt.verbose = true;
   else if (a === '--json') opt.json = true;
   else if (a === '--help' || a === '-h') {
-    console.log('usage: abap2ui5-linter [paths...] [--ui5 1.71] [--distribution sapui5|openui5] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
+    console.log('usage: abap2ui5-linter [paths...] [--ui5 1.71] [--distribution sapui5|openui5] [--allow control[.member]] [--fail-on error|warning|hint|never] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
     process.exit(0);
   } else paths.push(a);
 }
@@ -67,55 +79,43 @@ if (!files.length) {
 
 const results = await checkFiles(files, opt);
 
+const threshold = opt.failOn === 'never' ? Infinity : severityRank(opt.failOn);
+/** Findings at or above the threshold decide the exit code - a hint never
+ *  breaks a build unless it was asked to. Render errors always count: the
+ *  view demonstrably did not load. */
+const failsBuild = (r) =>
+  r.renderErrors.length > 0 || r.findings.some((f) => severityRank(severityOf(f)) >= threshold);
+
 let failing = 0;
 let skipped = 0;
+const totals = { error: 0, warning: 0, hint: 0 };
 for (const r of results) {
   const rel = path.relative(process.cwd(), r.file);
   const problems = r.findings.length + r.renderErrors.length;
+  for (const f of r.findings) totals[severityOf(f)]++;
+  totals.error += r.renderErrors.length;
   if (r.skippedRender && !problems) {
     skipped++;
     if (!opt.json) console.log(`SKIP  ${rel}  (${r.helperTokens} builder call(s) in helper methods — not statically reconstructable, render gate skipped)`);
     continue;
   }
-  if (problems) failing++;
+  const fails = failsBuild(r);
+  if (fails) failing++;
   if (opt.json) continue;
-  const status = problems ? 'FAIL' : 'pass';
+  const status = fails ? 'FAIL' : problems ? 'warn' : 'pass';
   console.log(`${status}  ${rel}${r.docs.length ? `  (${r.docs.length} doc(s))` : ''}`);
-  for (const f of r.findings) {
-    if (f.type === 'view-never-displayed') console.log('      a view is built but never displayed — client->view_display( ) is missing');
-    else if (f.type === 'missing-required-aggregation') console.log(`      ${f.control} has data but no ${f.member} — it renders empty`);
-    else if (f.type === 'collection-bound-to-property') console.log(`      ${f.control} ${f.member} is a scalar property but {${f.value}} is a table/structure`);
-    else if (f.type === 'member-deprecated') console.log(`      ${f.control} ${f.member} is deprecated (${String(f.deprecated?.text || '').slice(0, 70)})`);
-    else if (f.type === 'duplicate-aggregation') console.log(`      ${f.control} opens ${f.member} twice — the second tag replaces the first`);
-    else if (f.type === 'unconverted-abap-boolean') console.log(`      ${f.member}: the ABAP boolean ${f.value} reaches the view as 'X'/' ' — wrap it in z2ui5_cl_ai_xml=>as_bool( )`);
-    else if (f.type === 'unknown-binding-path') console.log(`      ${f.control} ${f.member}="{${f.value}}" — the model has no such path (silently empty)`);
-    else if (f.type === 'binding-for-event') console.log(`      ${f.control} ${f.member} is an event but carries a binding — use client->_event( )`);
-    else if (f.type === 'event-for-property') console.log(`      ${f.control} ${f.member} is a property but carries an event handler — use client->_bind( )`);
-    else if (f.type === 'obsolete-binder') console.log(`      client->${f.member}( ) is obsolete — use client->_bind( )`);
-    else if (f.type === 'binding-to-local') console.log(`      ${f.member} is a local variable — its value is lost after the roundtrip, bind an instance attribute`);
-    else if (f.type === 'event-without-handler') console.log(`      event ${f.value} is raised but never handled — dead control, unless the roundtrip alone is intended`);
-    else if (f.type === 'duplicate-id') console.log(`      id="${f.value}" is used twice — duplicate ID error at runtime`);
-    else if (f.type === 'undeclared-namespace') console.log(`      namespace prefix '${f.member}' is used but never declared (xmlns:${f.member})`);
-    else if (f.type === 'invalid-expression-binding') console.log(`      ${f.control} ${f.member}: unbalanced braces/parens in the expression binding`);
-    else if (f.type === 'missing-accessibility') console.log(`      ${f.control} has no ${f.member} — not usable with a screen reader`);
-    else if (f.type === 'sapui5-only-control') console.log(`      control ${f.control} needs SAPUI5 — ${f.library} is not part of OpenUI5`);
-    else if (f.type === 'unknown-control') console.log(`      control ${f.control} does not exist in UI5 — typo?`);
-    else if (f.type === 'control-too-new') console.log(`      control ${f.control} is @since ${f.since} — newer than the ${f.minUi5} floor`);
-    else if (f.type === 'control-deprecated') console.log(`      control ${f.control} is deprecated (${String(f.deprecated).slice(0, 80)})`);
-    else if (f.type === 'unknown-property') console.log(`      ${f.control} has no property/event/association ${f.member} — typo?`);
-    else if (f.type === 'unknown-aggregation') console.log(`      ${f.control} has no aggregation ${f.member} — typo?`);
-    else if (f.type === 'invalid-property-value') {
-      const allowed = f.allowed ? `allowed: ${f.allowed.join(', ')}` : `expected ${f.memberType}`;
-      console.log(`      ${f.control} ${f.member}="${f.value}" is not a valid value (${allowed})`);
-    } else if (f.type === 'invalid-aggregation-child') {
-      console.log(`      ${f.control} is not allowed in ${f.parentControl} ${f.member} (expects ${f.expected})`);
-    } else if (f.type === 'too-many-children') {
-      console.log(`      ${f.control} ${f.member} takes one child, ${f.count} given`);
-    } else if (f.type === 'excess-shut') {
-      console.log('      one shut( ) more than the tree is deep — asserts at runtime');
-    } else console.log(`      ${f.control} ${f.member} is @since ${f.since} — newer than the ${f.minUi5} floor`);
+  // in file order, the way a reader walks the source; findings the gates
+  // could not place (an inlined helper chain) come last
+  const ordered = [...r.findings].sort(
+    (a, b) => (a.line ?? Infinity) - (b.line ?? Infinity) || (a.column ?? 0) - (b.column ?? 0)
+  );
+  for (const f of ordered) {
+    const where = f.line ? `${f.line}:${f.column}` : '';
+    console.log(`      ${where.padStart(8)}  ${severityOf(f).padEnd(7)}  ${f.message || describe(f)}`);
   }
-  for (const e of r.renderErrors) console.log(`      render: ${e.slice(0, 220)}`);
+  for (const e of r.renderErrors) {
+    console.log(`      ${''.padStart(8)}  ${'error'.padEnd(7)}  render: ${e.slice(0, 220)}`);
+  }
   if (opt.verbose) for (const n of r.notes) console.log(`      note: ${n}`);
 }
 
@@ -126,6 +126,8 @@ if (opt.json) {
     files: results.length,
     failing,
     skipped,
+    totals,
+    failOn: opt.failOn,
     results: results.map((r) => ({
       file: r.file,
       kind: r.kind,
@@ -139,9 +141,11 @@ if (opt.json) {
   }));
 } else {
   const snap = snapshotVersion();
+  const counted = SEVERITIES.map((s) => `${totals[s]} ${s}`).reverse().join(', ');
   console.log(
-    `\nabap2ui5-linter: ${results.length} file(s), ${failing} failing, ${skipped} skipped ` +
-    `(target ${opt.distribution === 'openui5' ? 'OpenUI5' : 'SAPUI5'} ${opt.minUi5}${snap ? `, metadata from ${snap}` : ''}).`
+    `\nabap2ui5-linter: ${results.length} file(s), ${failing} failing, ${skipped} skipped — ${counted} ` +
+    `(target ${opt.distribution === 'openui5' ? 'OpenUI5' : 'SAPUI5'} ${opt.minUi5}${snap ? `, metadata from ${snap}` : ''}` +
+    `, failing on ${opt.failOn}).`
   );
 }
-if (!opt.advisory && failing > 0) process.exit(1);
+if (failing > 0) process.exit(1);
