@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /*
- * view-check — validate abap2UI5 views without an SAP system.
+ * abap2ui5-linter — validate abap2UI5 views without an SAP system.
  *
- *   npx view-check [paths...] [options]
+ *   npx abap2ui5-linter [paths...] [options]
  *
  * Paths are files or directories (default: ./src). Checked are ABAP classes
  * building views with z2ui5_cl_ai_xml, plus raw *.view.xml / *.fragment.xml.
@@ -38,7 +38,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--verbose') opt.verbose = true;
   else if (a === '--json') opt.json = true;
   else if (a === '--help' || a === '-h') {
-    console.log('usage: view-check [paths...] [--min-ui5 1.71] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
+    console.log('usage: abap2ui5-linter [paths...] [--min-ui5 1.71] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
     process.exit(0);
   } else paths.push(a);
 }
@@ -50,7 +50,7 @@ if (!files.length) {
     console.log(JSON.stringify({ files: 0, failing: 0, skipped: 0, results: [] }));
     process.exit(0);
   }
-  console.log(`view-check: no checkable files under ${paths.join(', ')} (ABAP classes using z2ui5_cl_ai_xml, *.view.xml, *.fragment.xml)`);
+  console.log(`abap2ui5-linter: no checkable files under ${paths.join(', ')} (ABAP classes using z2ui5_cl_ai_xml, *.view.xml, *.fragment.xml)`);
   process.exit(0);
 }
 
@@ -99,6 +99,6 @@ if (opt.json) {
     })),
   }));
 } else {
-  console.log(`\nview-check: ${results.length} file(s), ${failing} failing, ${skipped} skipped.`);
+  console.log(`\nabap2ui5-linter: ${results.length} file(s), ${failing} failing, ${skipped} skipped.`);
 }
 if (!opt.advisory && failing > 0) process.exit(1);

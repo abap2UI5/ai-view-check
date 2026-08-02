@@ -1,4 +1,4 @@
-# ai-view-check
+# abap2UI5-linter
 
 **Validate abap2UI5 views without an SAP system** — a CLI, library, and
 GitHub Action extracted from the CI gates of
@@ -48,11 +48,11 @@ Exit code 1 on any finding (unless `--advisory`) — CI-ready.
 
 ```yaml
 jobs:
-  view-check:
+  lint-views:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: abap2UI5/ai-view-check@main
+      - uses: abap2UI5/abap2UI5-linter@main
         with:
           paths: src
           min-ui5: '1.71'
@@ -62,7 +62,7 @@ jobs:
 ## Library
 
 ```js
-import { checkFiles, checkAbapSource, checkXmlSource } from '@abap2ui5/view-check';
+import { checkFiles, checkAbapSource, checkXmlSource } from '@abap2ui5/linter';
 
 const results = await checkFiles(['src/zcl_my_app.clas.abap']);
 // -> [{ file, findings: [{type, control, member, since}], renderErrors, docs, model }]
