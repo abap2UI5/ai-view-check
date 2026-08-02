@@ -11,7 +11,9 @@ Two gates:
    association/event in the view is resolved against a UI5 metadata snapshot
    (925 controls, member `@since` via the parent chain, control-level
    `@since`/`@deprecated`). A member newer than your UI5 floor (default
-   **1.71**) or a deprecated control is a finding.
+   **1.71**), a deprecated control, or a control that does not exist at all
+   in a covered UI5 library (`sap.m.Shell2` — a typo) is a finding; custom
+   namespaces stay out of scope.
 2. **Render gate** — the view is loaded with a real `XMLView.create` in
    headless Chromium against the OpenUI5 runtime served locally from the
    `@openui5/*` npm packages, with UI5 *future mode* active — so a typo'd

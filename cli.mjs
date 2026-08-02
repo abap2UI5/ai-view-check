@@ -71,7 +71,8 @@ for (const r of results) {
   const status = problems ? 'FAIL' : 'pass';
   console.log(`${status}  ${rel}${r.docs.length ? `  (${r.docs.length} doc(s))` : ''}`);
   for (const f of r.findings) {
-    if (f.type === 'control-too-new') console.log(`      control ${f.control} is @since ${f.since} — newer than the ${f.minUi5} floor`);
+    if (f.type === 'unknown-control') console.log(`      control ${f.control} does not exist in UI5 — typo?`);
+    else if (f.type === 'control-too-new') console.log(`      control ${f.control} is @since ${f.since} — newer than the ${f.minUi5} floor`);
     else if (f.type === 'control-deprecated') console.log(`      control ${f.control} is deprecated (${String(f.deprecated).slice(0, 80)})`);
     else console.log(`      ${f.control} ${f.member} is @since ${f.since} — newer than the ${f.minUi5} floor`);
   }
