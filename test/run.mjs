@@ -436,6 +436,60 @@ assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0]
     'directives: a finding the gate could not place is never suppressed');
 }
 
+// -------------------------------------------------------------- new rules ----
+// display-root-mismatch, binding-type-mismatch, event-arg-out-of-range
+{
+  const { checkAbapRules } = await import('../lib/abap-rules.mjs');
+  const roots = checkAbapSource(fs.readFileSync(f('roots.clas.abap'), 'utf8'));
+  const mismatches = roots.findings.filter((x) => x.type === 'display-root-mismatch');
+  assert(mismatches.length === 2,
+    `display-root-mismatch: both directions reported (got ${mismatches.length})`);
+  assert(mismatches.some((x) => x.member === 'popup_display' && x.value === 'mvc:View'),
+    'display-root-mismatch: a mvc:View handed to the popup slot');
+  assert(mismatches.some((x) => x.member === 'view_display' && x.value === 'core:FragmentDefinition'),
+    'display-root-mismatch: a core:FragmentDefinition handed to the view slot');
+  assert(!checkAbapSource(fs.readFileSync(f('good.clas.abap'), 'utf8')).findings
+    .some((x) => x.type === 'display-root-mismatch'),
+    'display-root-mismatch: a matching pair is not reported');
+
+  const typed = checkAbapSource(fs.readFileSync(f('typedbind.clas.abap'), 'utf8'));
+  const mism = typed.findings.filter((x) => x.type === 'binding-type-mismatch');
+  assert(mism.map((x) => x.memberType).sort().join() === 'boolean,float,int',
+    `binding-type-mismatch: a TYPE string field on a float, an int and a boolean property (got ${mism.map((x) => x.memberType).join() || 'none'})`);
+  assert(!mism.some((x) => x.value === 'REAL_NUM'),
+    'binding-type-mismatch: a numeric ABAP type on a numeric property is not reported');
+
+  const arity = typed.findings.filter((x) => x.type === 'event-arg-out-of-range');
+  assert(arity.length === 2, `event-arg-out-of-range: two reads past the end (got ${arity.length})`);
+  assert(arity.some((x) => x.value === 'PICK' && x.member === '2' && x.count === 1),
+    'event-arg-out-of-range: arg 2 of an event that sends one');
+  assert(arity.some((x) => x.value === 'PLAIN' && x.member === '1' && x.count === 0),
+    'event-arg-out-of-range: the default arg of an event that sends none');
+  assert(!arity.some((x) => x.member === '1' && x.value === 'PICK'),
+    'event-arg-out-of-range: a read inside the declared arity is not reported');
+
+  // the two shapes that were false positives on the corpus
+  const foreign = `CLASS x IMPLEMENTATION.
+  METHOD main.
+    DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+    v->leaf( \`Button\` )->a( n = \`press\` v = client->_event( \`GO\` ) ).
+    CASE client->get_event( ).
+      WHEN \`GO\`.
+        client->message_box_display( onclose = \`CLOSED\` ).
+      WHEN \`CLOSED\`.
+        IF client->get_event_arg( ) = \`YES\`.
+        ENDIF.
+    ENDCASE.
+  ENDMETHOD.
+  METHOD other.
+    client->popover_display( by_id = client->get_event_arg( ) ).
+  ENDMETHOD.
+ENDCLASS.`;
+  const none = checkAbapRules(foreign).filter((x) => x.type === 'event-arg-out-of-range');
+  assert(none.length === 0,
+    `event-arg-out-of-range: an event the class does not raise, and a read in another method, are not judged (got ${none.length})`);
+}
+
 // ------------------------------------------------------------------- fix ----
 {
   const os = await import('node:os');

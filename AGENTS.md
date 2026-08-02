@@ -13,7 +13,7 @@ and GitHub Action, no SAP system required.
 ```bash
 npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
-npm test                          # test/run.mjs, home-grown asserts, ~129 assertions
+npm test                          # test/run.mjs, home-grown asserts, ~140 assertions
 npm run generate-schema           # after adding a rule - the test gates the drift
 npm run generate-rules-page       # ditto: docs/index.html, the published reference
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
@@ -50,9 +50,9 @@ exact line):
 
 | Emitting file | Finding types |
 | --- | --- |
-| `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `missing-accessibility` |
-| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `view-never-displayed` |
-| `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
+| `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `binding-type-mismatch`, `missing-accessibility` |
+| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `event-arg-out-of-range`, `view-never-displayed` |
+| `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `display-root-mismatch`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
 | `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc`/`.json` loader (discovery, validation, precedence, the `rules` block). New config keys go through its KNOWN set + a run.mjs assertion |
 | `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, `RULES`, messages) plus the two things a repo can say back to it: `applyRules` (the config's `rules` block) and `applyDirectives` (`abap2ui5lint-disable-*` comments). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
@@ -112,34 +112,38 @@ currently have no test assertion.
 The mission is to encode as much app-building knowledge as possible as
 static checks, so an agent learns a rule from a finding instead of a doc.
 Candidates, distilled from the app guide and the ai-demokit gotchas, in
-rough feasibility order (each new rule follows the three-places rule above
+rough feasibility order (each new rule follows the five-places rule above
 plus a severity classification in `lib/findings.mjs`):
 
-1. **Popup/view root mismatch** — `popup_display`/`popover_display` handed a
-   root `mvc:View`, or `view_display` handed a `core:FragmentDefinition`.
-   `reconstruct` knows each doc's root; `abap-rules` sees the display calls —
-   they need to be joined per doc.
-2. **Strictly-typed property bound to a `TYPE string` field** — UI5 2.x
-   rejects a JSON string on an int/float/boolean property
-   (`"100" is of type string, expected float`). `abap-rules` already parses
-   `DATA ... TYPE`; `properties.json` knows the property type — join them for
-   two-way `_bind` targets.
-3. **Unbound PUBLIC attribute** (hint) — every PUBLIC attribute is serialized
-   into the draft and shipped to the browser per roundtrip; one that no view
-   ever binds is dead transport weight. Needs the class's PUBLIC DATA set
-   minus every `_bind`/`{FIELD}` reference.
-4. **`get_event_arg( n )` beyond the declared `t_arg` arity** — the event
-   declares its args statically; reading past them returns initial (or 500s
-   in the transpiled runtime). Cross-check per event name.
-5. **Frontend-action wire tokens** — the first `t_arg` of `control_global`
+1. **Frontend-action wire tokens** — the first `t_arg` of `control_global`
    must be a whitelisted global (`MESSAGE_TOAST`, …), `binding_call` methods
    must be `filter`/`sort`, `CONTROL_METHODS` args are positional and extras
    are silently dropped. Needs a small committed catalog generated from the
    core's `FrontendAction.js` (same pattern as `data/properties.json`).
-6. **Collapsed-brace expression bindings** — a `\{`-escaped brace inside a
+2. **Collapsed-brace expression bindings** — a `\{`-escaped brace inside a
    `|…|` template around a relative row field collapses and the attribute
    silently stops being a binding; heuristics exist in ai-demokit's
    pattern-lint and could generalize.
+3. **Unbound PUBLIC attribute** (hint) — every PUBLIC attribute is serialized
+   into the draft and shipped to the browser per roundtrip; one that no view
+   ever binds is dead transport weight. Needs the class's PUBLIC DATA set
+   minus every `_bind`/`{FIELD}` reference. **Weakest of the three**: an
+   attribute holding state across roundtrips without ever being bound is
+   legitimate and common, so this needs a way to tell the two apart before it
+   is worth shipping.
+
+Done and no longer on this list: popup/view root mismatch
+(`display-root-mismatch`), a character field on a strictly typed property
+(`binding-type-mismatch`), and reading past the declared `t_arg` arity
+(`event-arg-out-of-range`).
+
+**Measure a new rule against the ai-demokit corpus before shipping it.**
+`node cli.mjs /path/to/ai-demokit/src --no-render --json` over 282 real
+ports, diffed per finding type against `main`, is what caught two separate
+false-positive shapes in `event-arg-out-of-range` (an event raised by a
+`message_box_display( onclose = )` callback rather than `client->_event( )`,
+and dispatch leaking across an `ENDMETHOD`). A rule that lights up the corpus
+is usually wrong before the corpus is.
 
 ## `data/properties.json` is generated — never hand-edit
 

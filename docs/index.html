@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">20 error</span>
-      <span class="badge warning">10 warning</span>
+      <span class="badge error">22 error</span>
+      <span class="badge warning">11 warning</span>
       <span class="badge hint">2 hint</span>
       <span class="badge fix">3 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 32 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 35 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -171,6 +171,14 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
         </h3>
         <p class="summary"><code>a( )</code> on the bare factory root — nothing to attach it to</p>
         <p class="detail">An attribute call before any element was opened. There is no element to carry it, and the builder asserts.</p>
+      </article>
+      <article class="rule" id="display-root-mismatch" data-search="display-root-mismatch a mvc:view handed to popup_display( ), or a core:fragmentdefinition to view_display( ) the slot decides how the client builds the document: view_display( ) and the nested variants go through xmlview.create, popup_display( ) and popover_display( ) through fragment.load. a fragment is not a view, and a view has no open( ) — so the wrong pairing fails in the browser. only reported where the document root and the consuming call are in the same statement; a bare control root is a legitimate fragment and is never reported. error">
+        <h3><a href="#display-root-mismatch">display-root-mismatch</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a <code>mvc:View</code> handed to <code>popup_display( )</code>, or a <code>core:FragmentDefinition</code> to <code>view_display( )</code></p>
+        <p class="detail">The slot decides how the client builds the document: <code>view_display( )</code> and the nested variants go through <code>XMLView.create</code>, <code>popup_display( )</code> and <code>popover_display( )</code> through <code>Fragment.load</code>. A fragment is not a view, and a view has no <code>open( )</code> — so the wrong pairing fails in the browser. Only reported where the document root and the consuming call are in the same statement; a bare control root is a legitimate fragment and is never reported.</p>
+        <pre><code>client-&gt;popup_display( popup-&gt;stringify( ) ).  " popup built with n = `View`</code></pre>
       </article>
       <article class="rule" id="duplicate-aggregation" data-search="duplicate-aggregation the same aggregation opened twice under one control the second tag replaces the first, so everything built into the first one is gone from the rendered view — without a word from anywhere. error">
         <h3><a href="#duplicate-aggregation">duplicate-aggregation</a>
@@ -278,6 +286,15 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
         <p class="summary">a local variable bound</p>
         <p class="detail">The instance is serialized across the roundtrip, the method stack is not — so the value is gone when the answer comes back. Bind an instance attribute.</p>
       </article>
+      <article class="rule" id="event-arg-out-of-range" data-search="event-arg-out-of-range get_event_arg( n ) past the t_arg the event declares the arguments are static — they are written at the raise site — so reading past them is never anything but a mistake: initial in abap, a 500 in the transpiled runtime, and either way not the value the handler works with. judged only for a literal index, inside the handler of an event the class raises itself with client-&gt;_event( ), and never across a method boundary: an event arriving from a message_box_display( onclose = ) callback or a frontend action carries arguments from a source this pass cannot see. error">
+        <h3><a href="#event-arg-out-of-range">event-arg-out-of-range</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>get_event_arg( n )</code> past the <code>t_arg</code> the event declares</p>
+        <p class="detail">The arguments are static — they are written at the raise site — so reading past them is never anything but a mistake: initial in ABAP, a 500 in the transpiled runtime, and either way not the value the handler works with. Judged only for a literal index, inside the handler of an event the class raises itself with <code>client-&gt;_event( )</code>, and never across a method boundary: an event arriving from a <code>message_box_display( onclose = )</code> callback or a frontend action carries arguments from a source this pass cannot see.</p>
+        <pre><code>client-&gt;_event( val = `PICK` t_arg = VALUE #( ( `${$source&gt;/id}` ) ) )
+" … WHEN `PICK`. client-&gt;get_event_arg( 2 )</code></pre>
+      </article>
       <article class="rule" id="event-arg-unresolved" data-search="event-arg-unresolved a bare-brace t_arg literal ( {col} ) the runtime sends it verbatim, but only $-prefixed expressions are resolved by ui5 — so get_event_arg( ) receives an empty value, with no error anywhere. write  ${col} . a template that starts with a {0} placeholder is fine: that form is quoted. warning">
         <h3><a href="#event-arg-unresolved">event-arg-unresolved</a>
           <span class="badge warning">warning</span>
@@ -337,6 +354,15 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <section class="cat" id="cat-data">
       <h2>Data and usability</h2>
       <p class="blurb">The view loads and renders — but not with the data, or not for the user, the author had in mind.</p>
+      <article class="rule" id="binding-type-mismatch" data-search="binding-type-mismatch an abap character field bound to a numeric or boolean ui5 property the model ships json, so a type string (or c, n, d) field arrives as "100" where the property declared a float. ui5 1.71 coerces it; ui5 2.x and the render gate's future mode reject the view outright ("100" is of type string, expected float). declare the field with the matching abap type, or convert it before it reaches the model. only reported when the field's type is known from the class's own declarations. warning">
+        <h3><a href="#binding-type-mismatch">binding-type-mismatch</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">an ABAP character field bound to a numeric or boolean UI5 property</p>
+        <p class="detail">The model ships JSON, so a <code>TYPE string</code> (or <code>c</code>, <code>n</code>, <code>d</code>) field arrives as <code>"100"</code> where the property declared a float. UI5 1.71 coerces it; UI5 2.x and the render gate's future mode reject the view outright (<code>"100" is of type string, expected float</code>). Declare the field with the matching ABAP type, or convert it before it reaches the model. Only reported when the field's type is known from the class's own declarations.</p>
+        <pre><code>DATA percent TYPE string.
+" … )-&gt;a( n = `percentValue` v = client-&gt;_bind( percent )</code></pre>
+      </article>
       <article class="rule" id="collection-bound-to-property" data-search="collection-bound-to-property a table or structure bound to a scalar property the property receives an object where it expects a value. nothing throws; the control shows nothing useful. error">
         <h3><a href="#collection-bound-to-property">collection-bound-to-property</a>
           <span class="badge error">error</span>

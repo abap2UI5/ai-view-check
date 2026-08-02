@@ -79,6 +79,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'binding-to-local' — default severity: warning"
         },
+        "binding-type-mismatch": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'binding-type-mismatch' — default severity: warning"
+        },
         "collection-bound-to-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'collection-bound-to-property' — default severity: error"
@@ -91,6 +95,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'control-too-new' — default severity: warning"
         },
+        "display-root-mismatch": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'display-root-mismatch' — default severity: error"
+        },
         "duplicate-aggregation": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'duplicate-aggregation' — default severity: error"
@@ -102,6 +110,10 @@
         "duplicate-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'duplicate-property' — default severity: error"
+        },
+        "event-arg-out-of-range": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'event-arg-out-of-range' — default severity: error"
         },
         "event-arg-unresolved": {
           "$ref": "#/definitions/rule",

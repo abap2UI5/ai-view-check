@@ -29,10 +29,12 @@ Two gates:
    | `attribute-without-element` | `a( )` on the bare factory root — nothing to attach it to, asserts too |
    | `duplicate-id` | the same `id` twice — duplicate-ID error at runtime |
    | `undeclared-namespace` | `ns = 'form'` without an `xmlns:form` |
+   | `display-root-mismatch` | a `mvc:View` handed to `popup_display( )`, or a `core:FragmentDefinition` to `view_display( )` — the slot decides whether the client uses `XMLView.create` or `Fragment.load` |
    | `invalid-expression-binding` | unbalanced braces/parens in `{= … }` |
    | `sapui5-only-control` | needs SAPUI5, absent from OpenUI5 (see below) |
    | `missing-required-aggregation` | a `Table` bound to rows but given no `columns` — renders empty |
    | `collection-bound-to-property` | a table/structure bound to a scalar property |
+   | `binding-type-mismatch` | an ABAP character field bound to a numeric/boolean property — it arrives as `"100"` where UI5 declared a float, which future mode rejects |
    | `missing-accessibility` | icon-only `Button` without `tooltip`, `Image` without `alt` |
 
    Bindings and expressions are never value-checked (their value is a
@@ -52,6 +54,7 @@ Two gates:
    | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
    | `view-never-displayed` | a view is built but never handed to the client — an empty page, no error |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
+   | `event-arg-out-of-range` | `get_event_arg( n )` past the `t_arg` the event declares — the read comes back empty (a 500 in the transpiled runtime). Judged only for a literal index, inside the handler of an event the class raises itself |
    | `event-arg-unresolved` | a bare-brace `t_arg` literal (`` `{COL}` ``): the runtime sends it verbatim but only `$`-prefixed expressions are resolved by UI5, so `get_event_arg( )` receives an **empty** value with no error anywhere. Write `` `${COL}` `` (a template *starting* with a `{0}` placeholder is fine — that form is quoted) |
 
 The name in the left column is the **rule id**: it is printed at the end of
