@@ -8,12 +8,13 @@
  *   structure.clas.abap unknown control/property/aggregation, bad enum and
  *                       numeric values, 0..1 overfilled, excess shut( )
  *   dumps.clas.abap     builder calls z2ui5_cl_ai_xml ASSERTs on
+ *   rowpaths.clas.abap  relative binding paths inside a bound aggregation
  *   sample.view.xml     raw XML path: no findings, renders clean
  */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { checkFiles } from '../lib/index.mjs';
+import { checkAbapSource, checkFiles } from '../lib/index.mjs';
 import { severityOf } from '../lib/findings.mjs';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
@@ -149,6 +150,46 @@ assert(severityOf({ type: 'event-without-handler' }) === 'hint',
   'severity: an unhandled event is a hint - the roundtrip alone may be the point');
 assert(severityOf({ type: 'brand-new-rule-nobody-classified' }) === 'error',
   'severity: an unclassified type stays loud rather than being silently dropped');
+
+// a relative {NAME} inside a bound aggregation addresses the ROW - with the
+// row's shape known from the class's TYPES, a typo'd column is catchable
+const rows = (await checkFiles([f('rowpaths.clas.abap')], { render: false }))[0];
+const rowPathFindings = rows.findings.filter((x) => x.type === 'unknown-binding-path');
+assert(rowPathFindings.length === 1 && rowPathFindings[0].value === 'CARID',
+  `rows: the typo'd row field is the only one reported (${rowPathFindings.map((x) => x.value).join(', ')})`);
+assert(rowPathFindings[0].context === '/T_FLIGHTS',
+  'rows: the finding names the aggregation binding the row came from');
+assert(!rows.findings.some((x) => x.value === 'SEATSMAX'),
+  'rows: a declared but unseeded field is part of the row - an ABAP structure always has all of them');
+assert(!rows.findings.some((x) => x.value === 'CARRID'),
+  'rows: a column header under `columns` is not in the row context and is left alone');
+
+// no row shape, no verdict: a table of a type the class does not declare
+// could have any field, so nothing there is reported
+const opaque = `CLASS zcl_x DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES z2ui5_if_app.
+  PRIVATE SECTION.
+    DATA t_flights TYPE STANDARD TABLE OF sflight.
+ENDCLASS.
+CLASS zcl_x IMPLEMENTATION.
+  METHOD z2ui5_if_app~main.
+    DATA(view) = z2ui5_cl_ai_xml=>factory( ).
+    view->open( n = \`View\` ns = \`mvc\`
+        )->a( n = \`xmlns\`     v = \`sap.m\`
+        )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+        )->open( \`List\`
+            )->a( n = \`items\` v = client->_bind( t_flights )
+            )->open( \`items\`
+                )->leaf( \`StandardListItem\`
+                    )->a( n = \`title\` v = \`{ANYTHING_AT_ALL}\`
+        )->shut( )->shut( )->shut( ).
+    client->view_display( view->stringify( ) ).
+  ENDMETHOD.
+ENDCLASS.`;
+assert(!checkAbapSource(opaque, { render: false }).findings
+  .some((x) => x.type === 'unknown-binding-path'),
+  'rows: nothing is claimed about a row type the class does not declare');
 
 // positions in raw XML are just as exact as in a builder class
 const xmlPos = (await checkFiles([f('badvalue.view.xml')], { render: false }))[0];

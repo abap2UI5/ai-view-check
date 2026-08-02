@@ -43,7 +43,7 @@ Two gates:
 
    | Finding | Why it matters |
    | --- | --- |
-   | `unknown-binding-path` | a hand-written `{/TYPO}` the derived model has no path for — the field just stays empty |
+   | `unknown-binding-path` | a hand-written `{/TYPO}` the derived model has no path for — the field just stays empty. Inside a bound aggregation a relative `{TYPO}` is resolved against the **row**, so a misspelled column field is caught too — but only where the row's shape is known from the class's `TYPES`, never guessed |
    | `binding-for-event` / `event-for-property` | `_bind( )` on an event (dead control) or `_event( )` on a property |
    | `obsolete-binder` | `client->_bind_edit( )` — superseded by `client->_bind( )` |
    | `unconverted-abap-boolean` | an ABAP boolean written straight into the view: it arrives as `'X'`/`' '`, and UI5 reads any non-empty string as true — so `visible = abap_false` makes the control **visible**. Wrap it in `z2ui5_cl_ai_xml=>as_bool( )` |
