@@ -4,7 +4,8 @@
   "description": "Validate abap2UI5 views without an SAP system: UI5 version/deprecation property gate + headless render smoke.",
   "type": "module",
   "bin": {
-    "abap2ui5-linter": "cli.mjs"
+    "abap2ui5-linter": "cli.mjs",
+    "abap2ui5lint": "cli.mjs"
   },
   "exports": {
     ".": "./lib/index.mjs",
@@ -13,7 +14,9 @@
     "./render": "./lib/render.mjs",
     "./abap-rules": "./lib/abap-rules.mjs",
     "./findings": "./lib/findings.mjs",
-    "./config": "./lib/config.mjs"
+    "./config": "./lib/config.mjs",
+    "./report": "./lib/report.mjs",
+    "./schema": "./data/abap2ui5lint.schema.json"
   },
   "files": [
     "cli.mjs",
@@ -25,17 +28,19 @@
   "scripts": {
     "check": "node cli.mjs",
     "test": "node test/run.mjs",
-    "generate-metadata": "node scripts/generate-metadata.mjs"
+    "generate-metadata": "node scripts/generate-metadata.mjs",
+    "generate-schema": "node scripts/generate-schema.mjs",
+    "generate-rules-page": "node scripts/generate-rules-page.mjs"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/abap2UI5/abap2UI5-linter.git"
+    "url": "git+https://github.com/abap2UI5/linter.git"
   },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/abap2UI5/abap2UI5/issues"
   },
-  "homepage": "https://github.com/abap2UI5/abap2UI5-linter#readme",
+  "homepage": "https://github.com/abap2UI5/linter#readme",
   "dependencies": {
     "@openui5/sap.f": "1.150.0",
     "@openui5/sap.m": "1.150.0",

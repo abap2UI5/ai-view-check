@@ -13,10 +13,12 @@ and GitHub Action, no SAP system required.
 ```bash
 npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
-npm test                          # test/run.mjs, home-grown asserts, ~83 assertions
+npm test                          # test/run.mjs, home-grown asserts, ~156 assertions
+npm run generate-schema           # after adding a rule - the test gates the drift
+npm run generate-rules-page       # ditto: docs/index.html, the published reference
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
 # settings can be pinned in the checked repo's abap2ui5lint.jsonc (lib/config.mjs;
-# CLI flag > config > default; unknown keys fail loudly)
+# CLI flag > config > default; unknown keys and unknown rule ids fail loudly)
 ```
 
 `npm test` fails with an unhelpful Chromium error after a bare `npm ci` —
@@ -39,23 +41,76 @@ the playwright install is mandatory, not optional. CI
 
 ## Rule taxonomy — where each finding type is emitted
 
-There is **no rule registry**: finding types are string literals at their
-emit sites. Current inventory (grep the id to find the exact line):
+A finding's `type` **is its rule id** — printed at the end of every reported
+line, keyed in the config's `rules` block, nameable in a source directive and
+offered by the JSON schema. The registry is `SEVERITY_BY_TYPE` in
+`lib/findings.mjs` (exported as `RULES`); a type missing from it is not a
+known rule and the config will refuse it. Emit sites (grep the id to find the
+exact line):
 
 | Emitting file | Finding types |
 | --- | --- |
-| `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `missing-accessibility` |
-| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `view-never-displayed` |
-| `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
+| `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `binding-type-mismatch`, `missing-accessibility` |
+| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `event-arg-out-of-range`, `invalid-frontend-action`, `unescaped-brace-in-style`, `collapsed-brace-in-style`, `unused-public-attribute`, `view-never-displayed` |
+| `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `display-root-mismatch`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
-| `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc` loader (discovery, validation, precedence). New config keys go through its KNOWN set + a run.mjs assertion |
-| `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, messages). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
+| `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc`/`.json` loader (discovery, validation, precedence, the `rules` block). New config keys go through its KNOWN set + a run.mjs assertion |
+| `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, `RULES`, messages) plus the two things a repo can say back to it: `applyRules` (the config's `rules` block) and `applyDirectives` (`abap2ui5lint-disable-*` comments). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
+| `lib/report.mjs` | no findings — the **output layer**: `summarize`, the `stylish`/`json`/`markdown` formatters and the GitHub workflow-command annotations. The CLI only parses flags and picks one |
 
-**A new rule moves three places together** — forgetting one has happened:
+**A new rule moves five places together** — forgetting one has happened:
 
 1. the emit site in `lib/`,
-2. a fixture in `test/fixtures/` + assertions in `test/run.mjs`,
-3. a row in the README finding-type table.
+2. its severity in `SEVERITY_BY_TYPE` (`lib/findings.mjs`) — that is also what
+   registers it as a rule id,
+3. an entry in `RULE_DOCS` (`lib/rule-docs.mjs`) — category, summary, detail,
+4. a fixture in `test/fixtures/` + assertions in `test/run.mjs`,
+5. a row in the README finding-type table.
+
+Then regenerate and commit both artefacts — `npm test` fails while either is
+stale:
+
+```bash
+npm run generate-schema      # data/abap2ui5lint.schema.json
+npm run generate-rules-page  # docs/index.html
+```
+
+`lib/frontend-actions.mjs` is the one **hand-maintained** knowledge file:
+the closed whitelists `invalid-frontend-action` judges against. Its source of
+truth is abap2UI5's `z2ui5_cl_app_frontendaction_js` — a JavaScript module
+embedded in an ABAP string concatenation, which is not worth parsing, and
+that repo is not a dependency here. Refresh it by reading `GLOBAL_TARGETS`
+and `BINDING_METHODS` there. Only **closed** sets belong in it: `CONTROL_BY_ID`
+accepts any control method that does not match a deny prefix, so a whitelist
+for it would report correct code.
+
+A rule may also carry `fixes: [{ start, end, text }]` (see `lib/fix.mjs`):
+exact spans in the source it was given, applied by `--fix`. Attach them only
+when the correction is mechanical — a fix that has to guess is worse than a
+finding that stays — and describe it in the rule's `fixNote`, which the test
+requires for everything listed in `FIXABLE`.
+
+## Deliberate kinship with ui5lint and abaplint
+
+The audience is the audience of [UI5/linter](https://github.com/UI5/linter)
+and [abaplint](https://github.com/abaplint/abaplint), so the surface is
+theirs on purpose and a change that drifts from it needs a reason:
+
+| Ours | Modelled on |
+| --- | --- |
+| `path` heading, `line:col severity message rule-id`, `N problems (…)`, `Success! No findings detected.` | ui5lint's stylish formatter |
+| `--format stylish\|json\|markdown`, `--quiet`, `--version` | ui5lint |
+| `--fix` plus a `*_FIX_DRY_RUN` env escape | ui5lint's `--fix` / `UI5LINT_FIX_DRY_RUN` |
+| `abap2ui5lint-disable-next-line`/`-disable-line`/`-disable`/`-enable`, reason after `--` | ui5lint directives |
+| `abap2ui5lint.jsonc`, `rules: { id: false \| severity \| { severity, exclude } }`, JSON schema for editor completion | abaplint's config and `BasicRuleConfig` |
+| `docs/index.html` — one searchable page, one anchor per rule id | rules.abaplint.org |
+| bin alias `abap2ui5lint`, exit codes 0/1/2 | both |
+| workflow-command annotations on the PR diff | abaplint's `actions-abaplint` |
+
+Known deliberate divergences: severities are `error/warning/hint` (not
+abaplint's `Error/Warning/Info` — `hint` is already load-bearing across
+consumers), and rule ids are kebab-case like ui5lint's rather than abaplint's
+snake_case.
 
 Known test-coverage debt (assert these when touching the area):
 `invalid-aggregation-child`, `sapui5-only-control` and `open-levels`
@@ -65,35 +120,42 @@ currently have no test assertion.
 
 The mission is to encode as much app-building knowledge as possible as
 static checks, so an agent learns a rule from a finding instead of a doc.
-Candidates, distilled from the app guide and the ai-demokit gotchas, in
-rough feasibility order (each new rule follows the three-places rule above
-plus a severity classification in `lib/findings.mjs`):
+**The list distilled from the app guide and the ai-demokit gotchas is now
+worked off**; every entry shipped:
 
-1. **Popup/view root mismatch** — `popup_display`/`popover_display` handed a
-   root `mvc:View`, or `view_display` handed a `core:FragmentDefinition`.
-   `reconstruct` knows each doc's root; `abap-rules` sees the display calls —
-   they need to be joined per doc.
-2. **Strictly-typed property bound to a `TYPE string` field** — UI5 2.x
-   rejects a JSON string on an int/float/boolean property
-   (`"100" is of type string, expected float`). `abap-rules` already parses
-   `DATA ... TYPE`; `properties.json` knows the property type — join them for
-   two-way `_bind` targets.
-3. **Unbound PUBLIC attribute** (hint) — every PUBLIC attribute is serialized
-   into the draft and shipped to the browser per roundtrip; one that no view
-   ever binds is dead transport weight. Needs the class's PUBLIC DATA set
-   minus every `_bind`/`{FIELD}` reference.
-4. **`get_event_arg( n )` beyond the declared `t_arg` arity** — the event
-   declares its args statically; reading past them returns initial (or 500s
-   in the transpiled runtime). Cross-check per event name.
-5. **Frontend-action wire tokens** — the first `t_arg` of `control_global`
-   must be a whitelisted global (`MESSAGE_TOAST`, …), `binding_call` methods
-   must be `filter`/`sort`, `CONTROL_METHODS` args are positional and extras
-   are silently dropped. Needs a small committed catalog generated from the
-   core's `FrontendAction.js` (same pattern as `data/properties.json`).
-6. **Collapsed-brace expression bindings** — a `\{`-escaped brace inside a
-   `|…|` template around a relative row field collapses and the attribute
-   silently stops being a binding; heuristics exist in ai-demokit's
-   pattern-lint and could generalize.
+| Roadmap entry | Rule |
+| --- | --- |
+| Popup/view root mismatch | `display-root-mismatch` |
+| Strictly-typed property bound to a character field | `binding-type-mismatch` |
+| `get_event_arg( n )` beyond the declared arity | `event-arg-out-of-range` |
+| Frontend-action wire tokens | `invalid-frontend-action` (+ `lib/frontend-actions.mjs`) |
+| Collapsed-brace expression bindings | `collapsed-brace-in-style`, alongside `unescaped-brace-in-style` |
+| Unbound PUBLIC attribute | `unused-public-attribute` |
+
+The last one shipped **narrower than it was written**: "no view binds it" is
+not the same as dead. A PUBLIC attribute used only in ABAP code is state, not
+ballast — PUBLIC is precisely how a value survives the roundtrip — so only a
+name that appears once in the whole class, its own declaration, is reported.
+Keep that distinction if the rule is ever widened.
+
+New candidates go here as they are found. Two rules of the trade the last
+rounds established, before anything is added:
+
+**Measure a new rule against the ai-demokit corpus before shipping it.**
+`node cli.mjs /path/to/ai-demokit/src --no-render --json` over 282 real
+ports, diffed per finding type against `main`, is what caught three separate
+false-positive shapes: an event raised by a `message_box_display( onclose = )`
+callback rather than `client->_event( )`, dispatch leaking across an
+`ENDMETHOD`, and a `<style>` check scoped to the ABAP *statement* — which on
+a builder chain is the entire view. A rule that lights up the corpus is
+usually wrong before the corpus is.
+
+**And check the rule can see anything at all.** Zero findings on the corpus
+proves nothing on its own: `unused-public-attribute` was verified by
+injecting a dead attribute into a real port (caught) and by counting what it
+judges in silence (120 PUBLIC declarations across 37 of 60 sampled ports, all
+correctly referenced). A rule that parses nothing is also a rule that reports
+nothing.
 
 ## `data/properties.json` is generated — never hand-edit
 
@@ -115,14 +177,23 @@ the README).
 ## Release model — merging to main IS a release
 
 - There is **no npm publish**; consumers install from git
-  (`github:abap2UI5/abap2UI5-linter`). `package.json` stays at its version.
+  (`github:abap2UI5/linter`). `package.json` stays at its version.
+- **`docs/index.html` is published on merge** to
+  https://abap2ui5.github.io/linter/ by `.github/workflows/pages.yml` — a
+  reworded rule detail is live the moment it lands on main. The workflow only
+  serves the committed file, it never regenerates it: a generator running in
+  CI would paper over a stale commit instead of failing on it. Pages has to be
+  enabled once in the repository settings, source "GitHub Actions".
 - `.github/workflows/bundle.yml` maintains the rolling prerelease tag
   **`render-gate-bundle`** with `view-check-bundle.tgz` (cli + lib + data +
   prod node_modules). **Installed VS Code extensions download this bundle at
   runtime** (`vscode-extension/src/rendergate.ts`) — merging a change to
   `cli.mjs`, `lib/`, `data/` or `package.json` silently updates what every
   installed extension fetches next. There is no version negotiation; treat
-  `lib/` layout and CLI flags as a public contract.
+  `lib/` layout and CLI flags as a public contract. The **`--json` shape is
+  part of that contract** — it may grow keys (`problems` was added that way),
+  never lose or rename them. The human `stylish` output is not: it is for
+  people, and it changed shape once already.
 - The VS Code extension additionally pins a **linter commit SHA** in its
   `package-lock.json` for the bundled property gate — a new finding type is
   invisible in the editor until that lock is bumped there.
@@ -149,8 +220,8 @@ ports, POST_171 deviations, declared skips, advisories). Rules of thumb:
 - ai-demokit's own `ui5/properties.json` (older shape) now feeds only its
   coverage docs, not the gates — never copy one snapshot over the other.
 - When ai-demokit's dependency points at a feature branch of this repo
-  (`github:abap2UI5/abap2UI5-linter#<branch>`), it must go back to plain
-  `github:abap2UI5/abap2UI5-linter` once that branch is merged.
+  (`github:abap2UI5/linter#<branch>`), it must go back to plain
+  `github:abap2UI5/linter` once that branch is merged.
 
 ## Related repositories
 

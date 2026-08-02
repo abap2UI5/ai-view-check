@@ -16,6 +16,10 @@ inputs:
     description: 'Lowest severity that fails the job: error, warning, hint or never. Unset: the repo''s abap2ui5lint.jsonc, falling back to warning'
     required: false
     default: ''
+  annotations:
+    description: 'Annotate the findings on the pull request diff (GitHub workflow commands). Set to false to keep the log plain'
+    required: false
+    default: 'true'
   flags:
     description: 'Extra CLI flags, e.g. "--no-render --allow sap.m.Avatar.displaySize"'
     required: false
@@ -35,9 +39,11 @@ runs:
     - name: Run abap2UI5-linter
       shell: bash
       # only explicitly-set inputs become flags, so the checked repo's
-      # abap2ui5lint.jsonc governs everything left unset
+      # abap2ui5lint.jsonc governs everything left unset. Annotations are on
+      # by default inside a workflow - that is what puts a finding on the diff
       run: |
         ARGS=()
         if [ -n "${{ inputs['min-ui5'] }}" ]; then ARGS+=(--min-ui5 "${{ inputs['min-ui5'] }}"); fi
         if [ -n "${{ inputs['fail-on'] }}" ]; then ARGS+=(--fail-on "${{ inputs['fail-on'] }}"); fi
+        if [ "${{ inputs.annotations }}" = "false" ]; then ARGS+=(--no-annotate); fi
         node "${{ github.action_path }}/cli.mjs" ${{ inputs.paths }} "${ARGS[@]}" ${{ inputs.flags }}

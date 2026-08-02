@@ -356,12 +356,336 @@ assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0]
   // end-to-end: the CLI picks the config up from the checked path's directory
   // (cwd is this repo, which has no config - discovery must come from the path)
   fs.copyFileSync(f('good.clas.abap'), path.join(sub, 'good.clas.abap'));
-  const out = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap')], { encoding: 'utf8' });
+  const env = { ...process.env, NO_COLOR: '1', GITHUB_ACTIONS: '' }; // never inherit the runner's
+  const out = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap')], { encoding: 'utf8', env });
   assert(/target SAPUI5 1\.96/.test(out) && /failing on hint/.test(out),
     'config: cli applies ui5/failOn from the discovered abap2ui5lint.jsonc');
-  const off = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap'), '--no-config'], { encoding: 'utf8' });
+  const off = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap'), '--no-config'], { encoding: 'utf8', env });
   assert(/target SAPUI5 1\.71/.test(off), 'config: --no-config restores the defaults');
+
+  // the .json spelling is discovered too (abaplint.json / abaplint.jsonc)
+  const plain = path.join(dir, 'plain');
+  fs.mkdirSync(plain, { recursive: true });
+  fs.writeFileSync(path.join(plain, 'abap2ui5lint.json'), '{"ui5": "1.120"}');
+  assert(findConfig(plain) === path.join(plain, 'abap2ui5lint.json'),
+    'config: abap2ui5lint.json is discovered as well as .jsonc');
+
   fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ----------------------------------------------------------------- rules ----
+// per-rule off / severity / exclude, the abaplint-shaped `rules` block
+{
+  const { loadConfig } = await import('../lib/config.mjs');
+  const os = await import('node:os');
+  const src = fs.readFileSync(f('viewrules.clas.abap'), 'utf8');
+
+  const plain = checkAbapSource(src);
+  const has = (r, type) => r.findings.some((x) => x.type === type);
+  assert(has(plain, 'missing-accessibility') && has(plain, 'member-deprecated'),
+    'rules: the fixture reports the rules the overrides act on');
+
+  const off = checkAbapSource(src, { rules: { 'missing-accessibility': false } });
+  assert(!has(off, 'missing-accessibility') && has(off, 'member-deprecated'),
+    'rules: false switches a single rule off and leaves the rest alone');
+
+  const lowered = checkAbapSource(src, { rules: { 'member-deprecated': 'hint' } });
+  const dep = lowered.findings.find((x) => x.type === 'member-deprecated');
+  assert(dep.severity === 'hint' && severityOf(dep) === 'hint',
+    'rules: a severity string overrides the default, and severityOf reads it back');
+
+  const excluded = checkAbapSource(src, { rules: { 'duplicate-id': { exclude: ['viewrules'] } }, file: 'src/viewrules.clas.abap' });
+  assert(!has(excluded, 'duplicate-id'), 'rules: exclude drops the rule for a file the pattern matches');
+  const kept = checkAbapSource(src, { rules: { 'duplicate-id': { exclude: ['nothing'] } }, file: 'src/viewrules.clas.abap' });
+  assert(has(kept, 'duplicate-id'), 'rules: a non-matching exclude leaves the rule in place');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui5rules-'));
+  const write = (body) => { const p = path.join(dir, 'abap2ui5lint.jsonc'); fs.writeFileSync(p, body); return p; };
+  const throws = (body) => { try { loadConfig(write(body)); return ''; } catch (e) { return e.message; } };
+  assert(/unknown rule 'no-such-rule'/.test(throws('{"rules": {"no-such-rule": false}}')),
+    'rules: an unknown rule id in the config fails loudly');
+  assert(/must be a severity/.test(throws('{"rules": {"duplicate-id": "fatal"}}')),
+    'rules: an unknown severity fails loudly');
+  assert(/unknown key 'sevrity'/.test(throws('{"rules": {"duplicate-id": {"sevrity": "hint"}}}')),
+    'rules: a typo inside a rule object fails loudly');
+  assert(loadConfig(write('{"$schema": "x", "rules": {"duplicate-id": {"severity": "hint", "exclude": ["/test/"]}}}')).rules['duplicate-id'].severity === 'hint',
+    'rules: $schema is accepted and a full rule object survives loading');
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ------------------------------------------------------------ directives ----
+// " abap2ui5lint-disable-next-line <rule>, -disable-line, -disable/-enable
+{
+  const src = fs.readFileSync(f('directives.clas.abap'), 'utf8');
+  const r = checkAbapSource(src);
+  const props = r.findings.filter((x) => x.type === 'unknown-property').map((x) => x.member);
+  assert(props.join(',') === 'typo2,typo5',
+    `directives: only the unwaived typos survive (got ${props.join(',') || 'none'})`);
+
+  const { parseDirectives, applyDirectives } = await import('../lib/findings.mjs');
+  assert(parseDirectives('nothing to see here') === null,
+    'directives: a source without a directive costs nothing');
+  const d = parseDirectives('" abap2ui5lint-disable-next-line duplicate-id\nx\ny');
+  assert(d.suppresses(2, 'duplicate-id') && !d.suppresses(2, 'unknown-control') && !d.suppresses(3, 'duplicate-id'),
+    'directives: -disable-next-line is scoped to the next line and to the named rule');
+  const all = parseDirectives('<!-- abap2ui5lint-disable-next-line -->\nx');
+  assert(all.suppresses(2, 'anything'), 'directives: an XML comment without a rule id waives every rule');
+  const reason = parseDirectives('" abap2ui5lint-disable-line duplicate-id -- known, tracked in #42');
+  assert(reason.suppresses(1, 'duplicate-id') && !reason.suppresses(1, 'known'),
+    'directives: the reason after -- is not read as a rule id');
+  assert(applyDirectives([{ type: 'duplicate-id' }], '" abap2ui5lint-disable\n').length === 1,
+    'directives: a finding the gate could not place is never suppressed');
+}
+
+// -------------------------------------------------------------- new rules ----
+// display-root-mismatch, binding-type-mismatch, event-arg-out-of-range
+{
+  const { checkAbapRules } = await import('../lib/abap-rules.mjs');
+  const roots = checkAbapSource(fs.readFileSync(f('roots.clas.abap'), 'utf8'));
+  const mismatches = roots.findings.filter((x) => x.type === 'display-root-mismatch');
+  assert(mismatches.length === 2,
+    `display-root-mismatch: both directions reported (got ${mismatches.length})`);
+  assert(mismatches.some((x) => x.member === 'popup_display' && x.value === 'mvc:View'),
+    'display-root-mismatch: a mvc:View handed to the popup slot');
+  assert(mismatches.some((x) => x.member === 'view_display' && x.value === 'core:FragmentDefinition'),
+    'display-root-mismatch: a core:FragmentDefinition handed to the view slot');
+  assert(!checkAbapSource(fs.readFileSync(f('good.clas.abap'), 'utf8')).findings
+    .some((x) => x.type === 'display-root-mismatch'),
+    'display-root-mismatch: a matching pair is not reported');
+
+  const typed = checkAbapSource(fs.readFileSync(f('typedbind.clas.abap'), 'utf8'));
+  const mism = typed.findings.filter((x) => x.type === 'binding-type-mismatch');
+  assert(mism.map((x) => x.memberType).sort().join() === 'boolean,float,int',
+    `binding-type-mismatch: a TYPE string field on a float, an int and a boolean property (got ${mism.map((x) => x.memberType).join() || 'none'})`);
+  assert(!mism.some((x) => x.value === 'REAL_NUM'),
+    'binding-type-mismatch: a numeric ABAP type on a numeric property is not reported');
+
+  const arity = typed.findings.filter((x) => x.type === 'event-arg-out-of-range');
+  assert(arity.length === 2, `event-arg-out-of-range: two reads past the end (got ${arity.length})`);
+  assert(arity.some((x) => x.value === 'PICK' && x.member === '2' && x.count === 1),
+    'event-arg-out-of-range: arg 2 of an event that sends one');
+  assert(arity.some((x) => x.value === 'PLAIN' && x.member === '1' && x.count === 0),
+    'event-arg-out-of-range: the default arg of an event that sends none');
+  assert(!arity.some((x) => x.member === '1' && x.value === 'PICK'),
+    'event-arg-out-of-range: a read inside the declared arity is not reported');
+
+  // the two shapes that were false positives on the corpus
+  const foreign = `CLASS x IMPLEMENTATION.
+  METHOD main.
+    DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+    v->leaf( \`Button\` )->a( n = \`press\` v = client->_event( \`GO\` ) ).
+    CASE client->get_event( ).
+      WHEN \`GO\`.
+        client->message_box_display( onclose = \`CLOSED\` ).
+      WHEN \`CLOSED\`.
+        IF client->get_event_arg( ) = \`YES\`.
+        ENDIF.
+    ENDCASE.
+  ENDMETHOD.
+  METHOD other.
+    client->popover_display( by_id = client->get_event_arg( ) ).
+  ENDMETHOD.
+ENDCLASS.`;
+  const none = checkAbapRules(foreign).filter((x) => x.type === 'event-arg-out-of-range');
+  assert(none.length === 0,
+    `event-arg-out-of-range: an event the class does not raise, and a read in another method, are not judged (got ${none.length})`);
+
+  // --- frontend-action wires and CSS braces ---------------------------------
+  const wire = checkAbapSource(fs.readFileSync(f('wire.clas.abap'), 'utf8'));
+  const actions = wire.findings.filter((x) => x.type === 'invalid-frontend-action');
+  assert(actions.length === 4, `invalid-frontend-action: four bad wires (got ${actions.length})`);
+  assert(actions.some((x) => x.control === 'CONTROL_GLOBAL' && x.value === 'MESSAGE_TOASTER' && x.member === 'global object'),
+    'invalid-frontend-action: an unknown global object');
+  assert(actions.some((x) => x.control === 'CONTROL_GLOBAL' && x.value === 'display' && x.allowed.join() === 'show'),
+    'invalid-frontend-action: a method the global does not offer, with its allowed set');
+  assert(actions.some((x) => x.control === 'BINDING_CALL' && x.value === 'refresh'),
+    'invalid-frontend-action: a binding method that is not filter or sort');
+  assert(actions.some((x) => x.member === 'view slot'),
+    'invalid-frontend-action: the obsolete empty view slot of CONTROL_BY_ID');
+  assert(!actions.some((x) => ['MESSAGE_TOAST', 'show', 'hide', 'BUSY_INDICATOR'].includes(x.value)),
+    'invalid-frontend-action: a correct wire is never reported');
+
+  const { ACTION_ARGS, GLOBAL_TARGETS } = await import('../lib/frontend-actions.mjs');
+  assert(Object.keys(ACTION_ARGS).every((a) => a === a.toLowerCase()) && GLOBAL_TARGETS.MESSAGE_TOAST.includes('show'),
+    'invalid-frontend-action: the catalog is keyed by the cs_event constant name');
+
+  const css = wire.findings.filter((x) => x.type === 'unescaped-brace-in-style');
+  assert(css.length === 1 && css[0].count === 2,
+    `unescaped-brace-in-style: one finding per stylesheet, counting its braces (got ${css.length}/${css[0]?.count})`);
+  assert(checkAbapRules('DATA(c) = `<style>.a \\{color:red\\}</style>`.').length === 0,
+    'unescaped-brace-in-style: a correctly escaped stylesheet is silent');
+  assert(checkAbapRules('DATA(c) = `<style>.a \\{x\\}</style>` && `toast {0} done`.')
+    .filter((x) => x.type === 'unescaped-brace-in-style').length === 0,
+    'unescaped-brace-in-style: a brace outside the <style> span is not CSS (the corpus false positive)');
+
+  const collapsed = wire.findings.filter((x) => x.type === 'collapsed-brace-in-style');
+  assert(collapsed.length === 1 && collapsed[0].count === 2,
+    `collapsed-brace-in-style: the template form is caught where the source looks escaped (got ${collapsed.length})`);
+  assert(checkAbapRules('DATA(c) = |<style>.a \\\\\\{x\\\\\\}</style>|.')
+    .filter((x) => x.type === 'collapsed-brace-in-style').length === 0,
+    'collapsed-brace-in-style: a doubled backslash survives the template and is not reported');
+  assert(checkAbapRules('DATA(c) = `<style>.a \\{x\\}</style>`.')
+    .filter((x) => x.type === 'collapsed-brace-in-style').length === 0,
+    'collapsed-brace-in-style: the backtick form it recommends is not reported');
+
+  const dead = wire.findings.filter((x) => x.type === 'unused-public-attribute');
+  assert(dead.length === 1 && dead[0].member === 'ballast',
+    `unused-public-attribute: only the untouched one (got ${dead.map((x) => x.member).join() || 'none'})`);
+  assert(!dead.some((x) => ['name', 'counter'].includes(x.member)),
+    'unused-public-attribute: a bound attribute and one used only in code are both left alone');
+  assert(checkAbapRules('CLASS x DEFINITION. PROTECTED SECTION. DATA hidden TYPE string. ENDCLASS.')
+    .filter((x) => x.type === 'unused-public-attribute').length === 0,
+    'unused-public-attribute: a non-PUBLIC attribute is not transported and not judged');
+}
+
+// ------------------------------------------------------------------- fix ----
+{
+  const os = await import('node:os');
+  const cp = await import('node:child_process');
+  const CLI = path.join(FIX, '..', '..', 'cli.mjs');
+  const { applyFixes } = await import('../lib/fix.mjs');
+  const { checkAbapRules } = await import('../lib/abap-rules.mjs');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui5fix-'));
+  const target = path.join(dir, 'abaprules.clas.abap');
+  const original = fs.readFileSync(f('abaprules.clas.abap'), 'utf8');
+  fs.writeFileSync(target, original);
+
+  // the linter still exits 1 on what is left over, so never trust execFileSync
+  const run = (env = {}) => {
+    try {
+      return cp.execFileSync('node', [CLI, target, '--no-render', '--fix'], {
+        encoding: 'utf8',
+        env: { ...process.env, NO_COLOR: '1', GITHUB_ACTIONS: '', ...env },
+      });
+    } catch (e) { return e.stdout ?? ''; }
+  };
+
+  const dry = run({ ABAP2UI5LINT_FIX_DRY_RUN: 'true' });
+  assert(/would fix 3 problem\(s\)/.test(dry) && fs.readFileSync(target, 'utf8') === original,
+    'fix: the dry run reports what it would do and leaves the file alone');
+
+  const out = run();
+  const fixed = fs.readFileSync(target, 'utf8');
+  assert(/fixed 3 problem\(s\) in 1 file\(s\)/.test(out), 'fix: the three mechanical corrections are applied');
+  assert(/client->_bind\( name \)/.test(fixed) && !/_bind_edit/.test(fixed),
+    'fix: obsolete-binder becomes client->_bind( )');
+  assert(/z2ui5_cl_ai_xml=>as_bool\( abap_true \)/.test(fixed),
+    'fix: unconverted-abap-boolean is wrapped, the token kept verbatim');
+  assert(/`\$\{BARE_BRACE\}`/.test(fixed) && /`\$\{RESOLVED\}`/.test(fixed) && /`\{0\} selected`/.test(fixed),
+    'fix: event-arg-unresolved gains its $, the already-correct and quoted forms untouched');
+  assert(!/obsolete-binder|unconverted-abap-boolean|event-arg-unresolved/.test(out),
+    'fix: what was fixed is gone from the report of the same run');
+  assert(/binding-to-local/.test(out), 'fix: a finding without a mechanical correction survives');
+
+  const twice = original.replace(/client->_bind\( lv_local \)/, 'client->_bind_edit( lv_local )');
+  const both = checkAbapRules(twice).find((x) => x.type === 'obsolete-binder');
+  assert(both.fixes.length === 2, 'fix: two call sites of one deduped finding both carry a fix');
+  assert(!/_bind_edit/.test(applyFixes(twice, [both]).output), 'fix: and both are applied in one pass');
+
+  const overlap = applyFixes('abcdef', [{ fixes: [{ start: 1, end: 4, text: 'X' }, { start: 2, end: 5, text: 'Y' }] }]);
+  assert(overlap.output === 'aXef' && overlap.applied === 1 && overlap.deferred === 1,
+    'fix: overlapping spans are deferred to the next run, never merged by guesswork');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------- report ----
+{
+  const cp = await import('node:child_process');
+  const CLI = path.join(FIX, '..', '..', 'cli.mjs');
+  // GITHUB_ACTIONS is pinned OFF: inherited from the runner it turns the
+  // annotations on for every case below, and the assertions would then be
+  // testing a different program in CI than they test locally
+  const run = (args, env = {}) => {
+    try {
+      return cp.execFileSync('node', [CLI, ...args], {
+        encoding: 'utf8',
+        env: { ...process.env, NO_COLOR: '1', GITHUB_ACTIONS: '', ...env },
+      });
+    } catch (e) { return e.stdout ?? ''; }
+  };
+  const dumps = f('dumps.clas.abap');
+
+  const stylish = run([dumps, '--no-render']);
+  assert(/duplicate-property\s*$/m.test(stylish), 'report: every line ends in its rule id');
+  assert(/^2 problems \(2 errors, 0 warnings, 0 hints\)$/m.test(stylish), 'report: the problem count reads like ui5lint');
+  assert(!/\bpass\b/.test(run([f('good.clas.abap'), '--no-render'])) &&
+    /Success! No findings detected\./.test(run([f('good.clas.abap'), '--no-render'])),
+    'report: a clean file is not printed, only the success line');
+
+  const quiet = run([f('viewrules.clas.abap'), '--no-render', '--quiet']);
+  assert(!/\bhint\b.*missing-accessibility/.test(quiet) && /2 hints\)/.test(quiet),
+    'report: --quiet hides the non-errors but still counts them');
+
+  const json = JSON.parse(run([dumps, '--no-render', '--json']));
+  assert(json.problems === 2 && json.totals.error === 2 && json.results[0].findings[0].type,
+    'report: --json carries totals, problems and the annotated findings');
+  assert(JSON.parse(run([dumps, '--no-render', '--format', 'json'])).problems === 2,
+    'report: --format json is the same thing');
+
+  const md = run([dumps, '--no-render', '--format', 'markdown']);
+  assert(/\| Location \| Severity \| Message \| Rule \|/.test(md) && /`duplicate-property`/.test(md),
+    'report: --format markdown emits a table per file');
+
+  const annotated = run([dumps, '--no-render'], { GITHUB_ACTIONS: 'true' });
+  assert(/^::error file=.*dumps\.clas\.abap,line=31,col=18,title=abap2ui5-linter\(duplicate-property\)::/m.test(annotated),
+    'report: inside GitHub Actions the findings are annotated onto the diff');
+  assert(!/^::/m.test(run([dumps, '--no-render', '--no-annotate'], { GITHUB_ACTIONS: 'true' })),
+    'report: --no-annotate switches that off again');
+  assert(!/^::/m.test(run([dumps, '--no-render'])), 'report: no annotations outside a workflow');
+  // a workflow command appended after the document would make it a parse
+  // error - `--json | jq` inside Actions is the case that found this
+  const inWorkflow = run([dumps, '--no-render', '--json'], { GITHUB_ACTIONS: 'true' });
+  assert(JSON.parse(inWorkflow).problems === 2 && !/^::/m.test(inWorkflow),
+    'report: --json stays parseable inside GitHub Actions, annotations do not join it');
+  assert(!/^::/m.test(run([dumps, '--no-render', '--format', 'markdown'], { GITHUB_ACTIONS: 'true' })),
+    'report: markdown stays clean too');
+
+  assert(/^abap2ui5-linter \d+\.\d+\.\d+ \(.*cli\.mjs\)$/m.test(run(['--version'])),
+    'report: --version prints version and script location');
+  let usage = '';
+  try { cp.execFileSync('node', [CLI, '--nope'], { encoding: 'utf8', stdio: 'pipe' }); }
+  catch (e) { usage = e.stderr ?? ''; }
+  assert(/unknown option '--nope'/.test(usage), 'report: an unknown flag is refused, not read as a path');
+}
+
+// ---------------------------------------------------------------- schema ----
+{
+  const { render, SCHEMA_FILE } = await import('../scripts/generate-schema.mjs');
+  const committed = fs.readFileSync(SCHEMA_FILE, 'utf8');
+  assert(committed === render(), 'schema: data/abap2ui5lint.schema.json is in sync (npm run generate-schema)');
+  const schema = JSON.parse(committed);
+  const { RULES } = await import('../lib/findings.mjs');
+  assert(Object.keys(schema.properties.rules.properties).length === RULES.length && RULES.includes('duplicate-id'),
+    'schema: every rule id is offered to the editor');
+}
+
+// ----------------------------------------------------------- rules page ----
+{
+  const { RULES } = await import('../lib/findings.mjs');
+  const { RULE_DOCS, CATEGORIES } = await import('../lib/rule-docs.mjs');
+  const { FIXABLE } = await import('../lib/fix.mjs');
+  const { buildPage, PAGE_FILE } = await import('../scripts/generate-rules-page.mjs');
+
+  const documented = Object.keys(RULE_DOCS).sort();
+  assert(documented.join() === [...RULES].join(),
+    `rules page: every rule is documented and every documented rule exists (${
+      RULES.filter((r) => !RULE_DOCS[r]).concat(documented.filter((d) => !RULES.includes(d))).join(', ') || 'in sync'})`);
+
+  const known = new Set(CATEGORIES.map((c) => c.id));
+  assert(Object.values(RULE_DOCS).every((d) => known.has(d.category) && d.summary && d.detail),
+    'rules page: every entry has a known category, a summary and a detail');
+
+  assert(FIXABLE.every((id) => RULES.includes(id) && RULE_DOCS[id].fixNote),
+    'rules page: an autofixable rule says on the page what --fix does to it');
+
+  const page = fs.readFileSync(PAGE_FILE, 'utf8');
+  assert(page === buildPage(), 'rules page: docs/index.html is in sync (npm run generate-rules-page)');
+  assert(RULES.every((id) => page.includes(`<article class="rule" id="${id}"`)),
+    'rules page: every rule has an anchor to link to');
+  assert(!/<script src|<link rel="stylesheet"|https?:\/\/(?!github\.com|abap2ui5)/.test(page),
+    'rules page: self-contained - no external stylesheet, script or font');
 }
 
 console.log(failed ? `\n${failed} assertion(s) failed` : '\nall assertions passed');

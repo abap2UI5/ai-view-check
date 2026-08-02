@@ -29,10 +29,12 @@ Two gates:
    | `attribute-without-element` | `a( )` on the bare factory root — nothing to attach it to, asserts too |
    | `duplicate-id` | the same `id` twice — duplicate-ID error at runtime |
    | `undeclared-namespace` | `ns = 'form'` without an `xmlns:form` |
+   | `display-root-mismatch` | a `mvc:View` handed to `popup_display( )`, or a `core:FragmentDefinition` to `view_display( )` — the slot decides whether the client uses `XMLView.create` or `Fragment.load` |
    | `invalid-expression-binding` | unbalanced braces/parens in `{= … }` |
    | `sapui5-only-control` | needs SAPUI5, absent from OpenUI5 (see below) |
    | `missing-required-aggregation` | a `Table` bound to rows but given no `columns` — renders empty |
    | `collection-bound-to-property` | a table/structure bound to a scalar property |
+   | `binding-type-mismatch` | an ABAP character field bound to a numeric/boolean property — it arrives as `"100"` where UI5 declared a float, which future mode rejects |
    | `missing-accessibility` | icon-only `Button` without `tooltip`, `Image` without `alt` |
 
    Bindings and expressions are never value-checked (their value is a
@@ -52,18 +54,33 @@ Two gates:
    | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
    | `view-never-displayed` | a view is built but never handed to the client — an empty page, no error |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
+   | `invalid-frontend-action` | a frontend-action `t_arg` outside the set the runtime accepts — an unknown `CONTROL_GLOBAL` object or method, a `BINDING_CALL` method that is not `filter`/`sort`, or `CONTROL_BY_ID`'s obsolete empty view slot. The browser logs and does nothing |
+   | `unescaped-brace-in-style` | literal CSS braces in a `<style>` block — the XMLView parser reads them as bindings and the view dies; write `\{` and `\}` |
+   | `collapsed-brace-in-style` | the same escape written inside a `\|…\|` template — the template collapses `\{` to `{` before the builder sees it, so the view dies anyway; use a backtick literal |
+   | `unused-public-attribute` | a PUBLIC attribute nothing in the class ever touches — only PUBLIC attributes are serialized, so it is shipped to the browser every roundtrip for nothing |
+   | `event-arg-out-of-range` | `get_event_arg( n )` past the `t_arg` the event declares — the read comes back empty (a 500 in the transpiled runtime). Judged only for a literal index, inside the handler of an event the class raises itself |
    | `event-arg-unresolved` | a bare-brace `t_arg` literal (`` `{COL}` ``): the runtime sends it verbatim but only `$`-prefixed expressions are resolved by UI5, so `get_event_arg( )` receives an **empty** value with no error anywhere. Write `` `${COL}` `` (a template *starting* with a `{0}` placeholder is fine — that form is quoted) |
 
-Every finding carries a **severity**, a ready-made **message** and — where
-the gate could place it — the **line and column** in the file it came from:
+The name in the left column is the **rule id**: it is printed at the end of
+every reported line, it is the key in the `rules` block of the config file,
+and it is what a source directive names. Every rule is documented one page
+away — **[abap2ui5.github.io/linter](https://abap2ui5.github.io/linter/)**,
+searchable, one anchor per id. Every finding also carries a
+**severity**, a ready-made **message** and — where the gate could place it —
+the **line and column** in the file it came from:
 
 ```
-FAIL  src/zcl_my_app.clas.abap  (1 doc(s))
-         20:9   error    a( n = `title` ) without an element to attach it to — z2ui5_cl_ai_xml asserts on that
-         31:18  error    text is set twice on the same control — z2ui5_cl_ai_xml asserts on that
-         44:22  warning  sap.m.GenericTile systemInfo is @since 1.92.0 — newer than the 1.71 floor
-         51:35  hint     event NO_HANDLER is raised but never handled — dead control, unless the roundtrip alone is intended
+src/zcl_my_app.clas.abap
+  20:9   error    a( n = `title` ) without an element to attach it to …            attribute-without-element
+  31:18  error    text is set twice on the same control …                          duplicate-property
+  44:22  warning  sap.m.GenericTile systemInfo is @since 1.92.0 …                   member-too-new
+  51:35  hint     event NO_HANDLER is raised but never handled …                    event-without-handler
+
+4 problems (2 errors, 1 warning, 1 hint)
+abap2ui5-linter: 12 file(s), 1 failing, 0 skipped (target SAPUI5 1.71, metadata from 1.150.0, failing on warning)
 ```
+
+Files with nothing to report are not printed.
 
 | Severity | Meaning |
 | --- | --- |
@@ -101,11 +118,72 @@ node cli.mjs src --allow sap.m.GenericTile.systemInfo   # accepted deviation
 node cli.mjs src --no-render              # property gate only (no browser)
 node cli.mjs src --fail-on error          # only real breakage fails CI
 node cli.mjs src --advisory               # report, never fail the build
-node cli.mjs src --json                   # machine-readable output (for tools)
+node cli.mjs src --fix                    # correct what is mechanical, report the rest
+node cli.mjs src --quiet                  # errors only (the counts stay complete)
+node cli.mjs src --format json            # machine-readable output (for tools)
+node cli.mjs src --format markdown        # for a PR comment or a job summary
+node cli.mjs --version                    # version and script location
 ```
 
-Exit code 1 on any finding at or above `--fail-on` (default: `warning`) and
-on any render error — CI-ready.
+Installed, the binary is `abap2ui5-linter` — or `abap2ui5lint`, the short
+spelling that matches the config file name.
+
+| Exit code | |
+| --- | --- |
+| `0` | clean, or nothing above `--fail-on` |
+| `1` | a finding at or above `--fail-on` (default: `warning`), or a render error |
+| `2` | bad usage or a broken config file |
+
+`--format` takes `stylish` (the default shown above), `json` and `markdown`;
+`--json` is a shorthand for `--format json`. Inside GitHub Actions every
+finding is additionally emitted as a workflow command, so it shows up on the
+diff of the pull request rather than in the log only — `--no-annotate` turns
+that off, `--annotate` forces it on elsewhere.
+
+## `--fix`
+
+Three rules carry an exact correction and are rewritten in place; the run
+then reports what is left, so `--fix` can go in front of any other flag.
+
+| Rule | What `--fix` writes |
+| --- | --- |
+| `obsolete-binder` | `client->_bind_edit( … )` → `client->_bind( … )`, arguments untouched |
+| `unconverted-abap-boolean` | a bare token wrapped in `z2ui5_cl_ai_xml=>as_bool( … )` — an expression is left alone |
+| `event-arg-unresolved` | the missing `$` inserted (`` `{COL}` `` → `` `${COL}` ``), a `\|…\|` template left alone |
+
+Nothing else is touched: a correction that has to guess (which of two
+duplicate attributes survives, what event a `_bind` on an event slot meant to
+raise) is worse than the finding it replaces. A rule waived by a directive or
+by the config is never rewritten, and overlapping corrections are deferred to
+the next run rather than merged. `ABAP2UI5LINT_FIX_DRY_RUN=true` reports what
+it would change without writing a file.
+
+## Waiving a rule
+
+Three scopes, from narrow to wide:
+
+**One line** — a comment in the source, spelled the way ui5lint spells it and
+carried by whatever comment syntax the file has:
+
+```abap
+" abap2ui5lint-disable-next-line unknown-binding-path -- filled in a LOOP
+)->a( n = `text` v = `{PRICE}`
+```
+
+```xml
+<!-- abap2ui5lint-disable-next-line unknown-property -->
+```
+
+`-disable-line` waives the line the comment sits on, `-disable` … `-enable`
+waives a block. Naming no rule waives every rule; everything after `--` is a
+reason and is ignored — which is also what ends an XML comment, so the `-->`
+is never read as a rule id.
+
+**One repo** — the `rules` block of the config file (see below): switch a rule
+off, give it another severity, or exclude files from it.
+
+**One member** — `--allow sap.m.Avatar.displaySize` keeps using a control or
+member that is newer than the floor, without touching the rule itself.
 
 ### SAPUI5 or OpenUI5
 
@@ -139,24 +217,38 @@ or above the versions you target.
 ## Configuration file — `abap2ui5lint.jsonc`
 
 Pin the settings in the checked repo instead of repeating CLI flags — same
-idea as `abaplint.jsonc`. Discovery is eslint-style: `--config <file>` wins,
-otherwise the file is searched upward from the current directory and from
-each given path. Precedence per option: explicit CLI flag > config file >
-built-in default (`--no-config` ignores the file entirely).
+idea as `abaplint.jsonc`, and `abap2ui5lint.json` is discovered too.
+Discovery is eslint-style: `--config <file>` wins, otherwise the file is
+searched upward from the current directory and from each given path.
+Precedence per option: explicit CLI flag > config file > built-in default
+(`--no-config` ignores the file entirely).
 
 ```jsonc
 {
+  "$schema": "https://raw.githubusercontent.com/abap2UI5/linter/main/data/abap2ui5lint.schema.json",
   "paths": ["src"],          // used when the CLI got no positional paths
   "ui5": "1.71",             // UI5 floor for the property gate
   "distribution": "sapui5",  // or "openui5"
   "failOn": "warning",       // error | warning | hint | never
   "render": true,            // false = skip the render gate (--no-render)
-  "allow": []                // e.g. ["sap.m.Avatar.displaySize"]
+  "allow": [],               // e.g. ["sap.m.Avatar.displaySize"]
+  "rules": {
+    "missing-accessibility": false,        // off
+    "member-deprecated": "hint",           // another severity
+    "event-without-handler": {             // both, plus file exclusions
+      "severity": "warning",
+      "exclude": ["/test/"]                // file regex, case insensitive
+    }
+  }
 }
 ```
 
-Unknown keys fail loudly (typo protection). The GitHub Action defers to the
-repo's config for every input you leave unset.
+The `$schema` line gives editors completion and validation for every key and
+every rule id — `data/abap2ui5lint.schema.json` is generated from the rule
+registry, so it can never drift from the linter (`npm run generate-schema`).
+
+Unknown keys — and unknown rule ids — fail loudly (typo protection). The
+GitHub Action defers to the repo's config for every input you leave unset.
 
 ## GitHub Action
 
@@ -166,13 +258,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: abap2UI5/abap2UI5-linter@main
+      - uses: abap2UI5/linter@main
         with:
           paths: src
           min-ui5: '1.71'
           fail-on: warning
           flags: '--allow sap.m.GenericTile.systemInfo'
 ```
+
+Findings are annotated onto the pull request diff by default; set
+`annotations: false` to keep the log plain.
 
 ## Library
 
@@ -185,18 +280,26 @@ const results = await checkFiles(['src/zcl_my_app.clas.abap']);
 ```
 
 `checkFiles`/`checkAbapSource`/`checkXmlSource` annotate their findings
-themselves. Anything driving the gates directly (`checkNodes`,
-`checkAbapRules`) gets the same from the `findings` subpath, so severity and
-wording are never reinvented per consumer:
+themselves and honour `rules` plus the source directives — pass `rules` (and,
+for `exclude`, the `file` the source came from) in the options. Anything
+driving the gates directly (`checkNodes`, `checkAbapRules`) gets the same from
+the `findings` subpath, so severity and wording are never reinvented per
+consumer:
 
 ```js
-import { annotate, severityOf, describe } from '@abap2ui5/linter/findings';
+import { annotate, applyRules, applyDirectives, RULES, severityOf, describe }
+  from '@abap2ui5/linter/findings';
 
-annotate(findings, source); // adds severity, message, line, column in place
+annotate(findings, source);                       // severity, message, line, column
+findings = applyRules(findings, rules, file);     // the repo's rules block
+findings = applyDirectives(findings, source);     // abap2ui5lint-disable-* comments
 ```
 
+`RULES` is the full rule-id registry. The `report` subpath holds the
+formatters (`formatStylish`, `formatJson`, `formatMarkdown`,
+`githubAnnotations`, `summarize`) if you want the same output elsewhere.
 `--json` output carries the annotated findings plus a `totals` count per
-severity.
+severity and a `problems` total.
 
 Consumers: the [ai-mcp](https://github.com/abap2UI5/ai-mcp) server exposes
 these gates as MCP tools for AI coding agents; the
@@ -234,6 +337,14 @@ sources, so a plain regenerate needs no OpenUI5 clone:
 ```sh
 npm run generate-metadata                              # from node_modules
 OPENUI5_DIR=/path/to/openui5 npm run generate-metadata # from a checkout
+```
+
+Two more artefacts are generated from the rule registry in `lib/findings.mjs`
+and the prose in `lib/rule-docs.mjs` — `npm test` fails while either is stale:
+
+```sh
+npm run generate-schema      # data/abap2ui5lint.schema.json — editor completion
+npm run generate-rules-page  # docs/index.html — the published rule reference
 ```
 
 ## Credits

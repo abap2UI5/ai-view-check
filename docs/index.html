@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>abap2UI5-linter rules</title>
+<meta name="description" content="Every rule the abap2UI5 view linter reports: what it means, how severe it is, and how to configure or waive it.">
+<style>
+:root {
+  --bg: #fff; --fg: #1c1e21; --muted: #5c6370; --line: #e3e6ea; --card: #fafbfc;
+  --code-bg: #f2f4f6; --link: #0b62c4;
+  --error: #b31d28; --error-bg: #ffe9e7; --warning: #8a5300; --warning-bg: #fff4d6;
+  --hint: #0a5c8a; --hint-bg: #e2f1fb; --fix: #1a6b3c; --fix-bg: #def3e6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1216; --fg: #e6e8eb; --muted: #99a1ad; --line: #262b33; --card: #161a20;
+    --code-bg: #1c2128; --link: #6cb6ff;
+    --error: #ff9492; --error-bg: #3a1d1d; --warning: #f0c368; --warning-bg: #3a2f13;
+    --hint: #8fc9ef; --hint-bg: #16303f; --fix: #7ee2a8; --fix-bg: #14301f;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); line-height: 1.6;
+  font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+.wrap { max-width: 62rem; margin: 0 auto; padding: 2.5rem 1.25rem 6rem; }
+a { color: var(--link); }
+code { background: var(--code-bg); padding: .1em .35em; border-radius: 4px; font-size: .9em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+pre { background: var(--code-bg); padding: .85rem 1rem; border-radius: 8px; overflow-x: auto; }
+pre code { background: none; padding: 0; }
+header h1 { margin: 0 0 .25rem; font-size: 2rem; letter-spacing: -.02em; }
+header p.lede { margin: 0 0 1.25rem; color: var(--muted); font-size: 1.05rem; }
+.counts { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: 1.5rem; }
+.badge { display: inline-block; padding: .1rem .55rem; border-radius: 999px; font-size: .78rem;
+  font-weight: 600; letter-spacing: .01em; white-space: nowrap; }
+.badge.error { color: var(--error); background: var(--error-bg); }
+.badge.warning { color: var(--warning); background: var(--warning-bg); }
+.badge.hint { color: var(--hint); background: var(--hint-bg); }
+.badge.fix { color: var(--fix); background: var(--fix-bg); }
+#filter { width: 100%; padding: .7rem .9rem; font-size: 1rem; color: var(--fg);
+  background: var(--card); border: 1px solid var(--line); border-radius: 8px; }
+#filter:focus { outline: 2px solid var(--link); outline-offset: -1px; }
+.hint-line { margin: .4rem 0 2rem; color: var(--muted); font-size: .88rem; }
+section.cat { margin: 2.5rem 0 0; }
+section.cat > h2 { font-size: 1.3rem; margin: 0 0 .2rem; padding-top: 1.5rem; border-top: 1px solid var(--line); }
+section.cat > p.blurb { margin: 0 0 1.25rem; color: var(--muted); }
+article.rule { border: 1px solid var(--line); background: var(--card); border-radius: 10px;
+  padding: 1rem 1.15rem; margin-bottom: .85rem; }
+article.rule > h3 { margin: 0 0 .4rem; font-size: 1.02rem; display: flex; flex-wrap: wrap;
+  align-items: center; gap: .5rem; }
+article.rule > h3 a { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-decoration: none; }
+article.rule > h3 a:hover { text-decoration: underline; }
+article.rule p { margin: .35rem 0; }
+article.rule p.summary { font-weight: 500; }
+article.rule p.detail, article.rule p.fixnote { color: var(--muted); font-size: .94rem; }
+article.rule pre { margin: .6rem 0 0; font-size: .86rem; }
+.empty { color: var(--muted); font-style: italic; display: none; }
+footer { margin-top: 3.5rem; padding-top: 1.5rem; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: .88rem; }
+table.sev { border-collapse: collapse; margin: .5rem 0 0; font-size: .92rem; }
+table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>abap2UI5-linter rules</h1>
+    <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
+      what it means, and what to do about it.</p>
+    <div class="counts">
+      <span class="badge error">25 error</span>
+      <span class="badge warning">11 warning</span>
+      <span class="badge hint">3 hint</span>
+      <span class="badge fix">3 autofixable</span>
+    </div>
+    <input id="filter" type="search" placeholder="Filter 39 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
+      <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
+      <code>abap2ui5lint-disable-next-line</code> comment names.</p>
+  </header>
+
+  <p class="empty">No rule matches that.</p>
+
+  <section class="cat" id="cat-usage">
+    <h2>Severity, and how to waive a rule</h2>
+    <p class="blurb">Every finding is always reported; <code>--fail-on</code> only decides the exit code
+      (default: <code>warning</code>).</p>
+    <table class="sev">
+      <tr><td><span class="badge error">error</span></td><td>the app breaks: a dump, a control that will not load, a value UI5 rejects, or a defect that silently destroys the view</td></tr>
+      <tr><td><span class="badge warning">warning</span></td><td>it works where it was written, but not necessarily on the target system — or the data behind it is not what the author thinks it is</td></tr>
+      <tr><td><span class="badge hint">hint</span></td><td>worth knowing, never wrong by itself</td></tr>
+    </table>
+    <p>One line, in the source it applies to:</p>
+    <pre><code>" abap2ui5lint-disable-next-line unknown-binding-path -- filled in a LOOP
+)-&gt;a( n = `text` v = `{PRICE}` )</code></pre>
+    <p>One repo, in <code>abap2ui5lint.jsonc</code>:</p>
+    <pre><code>{
+  "rules": {
+    "missing-accessibility": false,
+    "member-deprecated": "hint",
+    "event-without-handler": { "severity": "warning", "exclude": ["/test/"] }
+  }
+}</code></pre>
+  </section>
+
+    <section class="cat" id="cat-metadata">
+      <h2>Controls and members</h2>
+      <p class="blurb">Everything the view writes, resolved against the UI5 metadata snapshot generated from the OpenUI5 sources.</p>
+      <article class="rule" id="invalid-aggregation-child" data-search="invalid-aggregation-child a control the aggregation's type does not accept the aggregation declares a type, and the control put inside it does not inherit from it. ui5 refuses to add the child, so the part of the view below it silently disappears. error">
+        <h3><a href="#invalid-aggregation-child">invalid-aggregation-child</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a control the aggregation's type does not accept</p>
+        <p class="detail">The aggregation declares a type, and the control put inside it does not inherit from it. UI5 refuses to add the child, so the part of the view below it silently disappears.</p>
+      </article>
+      <article class="rule" id="invalid-property-value" data-search="invalid-property-value button type="emphasised" — outside sap.m.buttontype the literal is not a member of the enum the property is typed with, or it is not a number on an int/float property, or not a boolean on a boolean one. ui5 in future mode refuses the view rather than falling back to a default. bindings and expressions are never value-checked — their value is a runtime matter. error">
+        <h3><a href="#invalid-property-value">invalid-property-value</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>Button type="Emphasised"</code> — outside <code>sap.m.ButtonType</code></p>
+        <p class="detail">The literal is not a member of the enum the property is typed with, or it is not a number on an int/float property, or not a boolean on a boolean one. UI5 in future mode refuses the view rather than falling back to a default. Bindings and expressions are never value-checked — their value is a runtime matter.</p>
+      </article>
+      <article class="rule" id="too-many-children" data-search="too-many-children two controls in a 0..1 aggregation a single-cardinality aggregation was filled more than once. only one child survives — which one is not something to rely on. error">
+        <h3><a href="#too-many-children">too-many-children</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">two controls in a 0..1 aggregation</p>
+        <p class="detail">A single-cardinality aggregation was filled more than once. Only one child survives — which one is not something to rely on.</p>
+      </article>
+      <article class="rule" id="unknown-aggregation" data-search="unknown-aggregation page contentt — no such aggregation an aggregation tag the parent control does not declare. ui5 then looks for a control class by that name and fails. error">
+        <h3><a href="#unknown-aggregation">unknown-aggregation</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>Page contentt</code> — no such aggregation</p>
+        <p class="detail">An aggregation tag the parent control does not declare. UI5 then looks for a control class by that name and fails.</p>
+      </article>
+      <article class="rule" id="unknown-control" data-search="unknown-control sap.m.shell2 — no such control the control name is not in the metadata snapshot under any known library. almost always a typo; ui5 fails to load the class and the view never appears. a control from a custom namespace is out of scope and never reported here. error">
+        <h3><a href="#unknown-control">unknown-control</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>sap.m.Shell2</code> — no such control</p>
+        <p class="detail">The control name is not in the metadata snapshot under any known library. Almost always a typo; UI5 fails to load the class and the view never appears. A control from a custom namespace is out of scope and never reported here.</p>
+        <pre><code>view-&gt;leaf( `Buton` )</code></pre>
+      </article>
+      <article class="rule" id="unknown-property" data-search="unknown-property button typ="…" — no such property, event or association the attribute does not exist on the control or anywhere in its inheritance chain. ui5 in future mode rejects the view. a control whose chain leaves the snapshot is never reported as missing a member — the linter does not guess. error">
+        <h3><a href="#unknown-property">unknown-property</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>Button typ="…"</code> — no such property, event or association</p>
+        <p class="detail">The attribute does not exist on the control or anywhere in its inheritance chain. UI5 in future mode rejects the view. A control whose chain leaves the snapshot is never reported as missing a member — the linter does not guess.</p>
+        <pre><code>view-&gt;leaf( `Button` )-&gt;a( n = `typ` v = `Emphasized` )</code></pre>
+      </article>
+    </section>
+    <section class="cat" id="cat-structure">
+      <h2>View structure</h2>
+      <p class="blurb">Defects in the shape of the document itself — several of them make z2ui5_cl_ai_xml assert before a view is ever produced.</p>
+      <article class="rule" id="aggregation-in-aggregation" data-search="aggregation-in-aggregation an aggregation directly inside another one invalid xml, and the signature of a missing shut( ): ui5 goes looking for a control class by that aggregation name and fails. error">
+        <h3><a href="#aggregation-in-aggregation">aggregation-in-aggregation</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">an aggregation directly inside another one</p>
+        <p class="detail">Invalid XML, and the signature of a missing <code>shut( )</code>: UI5 goes looking for a control class by that aggregation name and fails.</p>
+      </article>
+      <article class="rule" id="attribute-without-element" data-search="attribute-without-element a( ) on the bare factory root — nothing to attach it to an attribute call before any element was opened. there is no element to carry it, and the builder asserts. error">
+        <h3><a href="#attribute-without-element">attribute-without-element</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>a( )</code> on the bare factory root — nothing to attach it to</p>
+        <p class="detail">An attribute call before any element was opened. There is no element to carry it, and the builder asserts.</p>
+      </article>
+      <article class="rule" id="display-root-mismatch" data-search="display-root-mismatch a mvc:view handed to popup_display( ), or a core:fragmentdefinition to view_display( ) the slot decides how the client builds the document: view_display( ) and the nested variants go through xmlview.create, popup_display( ) and popover_display( ) through fragment.load. a fragment is not a view, and a view has no open( ) — so the wrong pairing fails in the browser. only reported where the document root and the consuming call are in the same statement; a bare control root is a legitimate fragment and is never reported. error">
+        <h3><a href="#display-root-mismatch">display-root-mismatch</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a <code>mvc:View</code> handed to <code>popup_display( )</code>, or a <code>core:FragmentDefinition</code> to <code>view_display( )</code></p>
+        <p class="detail">The slot decides how the client builds the document: <code>view_display( )</code> and the nested variants go through <code>XMLView.create</code>, <code>popup_display( )</code> and <code>popover_display( )</code> through <code>Fragment.load</code>. A fragment is not a view, and a view has no <code>open( )</code> — so the wrong pairing fails in the browser. Only reported where the document root and the consuming call are in the same statement; a bare control root is a legitimate fragment and is never reported.</p>
+        <pre><code>client-&gt;popup_display( popup-&gt;stringify( ) ).  " popup built with n = `View`</code></pre>
+      </article>
+      <article class="rule" id="duplicate-aggregation" data-search="duplicate-aggregation the same aggregation opened twice under one control the second tag replaces the first, so everything built into the first one is gone from the rendered view — without a word from anywhere. error">
+        <h3><a href="#duplicate-aggregation">duplicate-aggregation</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">the same aggregation opened twice under one control</p>
+        <p class="detail">The second tag replaces the first, so everything built into the first one is gone from the rendered view — without a word from anywhere.</p>
+      </article>
+      <article class="rule" id="duplicate-id" data-search="duplicate-id the same id twice a duplicate-id error at runtime — ui5 ids are unique per view. error">
+        <h3><a href="#duplicate-id">duplicate-id</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">the same <code>id</code> twice</p>
+        <p class="detail">A duplicate-ID error at runtime — UI5 IDs are unique per view.</p>
+      </article>
+      <article class="rule" id="duplicate-property" data-search="duplicate-property the same attribute written twice on one control z2ui5_cl_ai_xml asserts on a repeated attribute rather than letting the second value win silently. error">
+        <h3><a href="#duplicate-property">duplicate-property</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">the same attribute written twice on one control</p>
+        <p class="detail">z2ui5_cl_ai_xml asserts on a repeated attribute rather than letting the second value win silently.</p>
+      </article>
+      <article class="rule" id="excess-shut" data-search="excess-shut one shut( ) more than the builder tree is deep the builder ascends past the root. z2ui5_cl_ai_xml asserts on it, so the app dumps before it renders. error">
+        <h3><a href="#excess-shut">excess-shut</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">one <code>shut( )</code> more than the builder tree is deep</p>
+        <p class="detail">The builder ascends past the root. z2ui5_cl_ai_xml asserts on it, so the app dumps before it renders.</p>
+      </article>
+      <article class="rule" id="invalid-expression-binding" data-search="invalid-expression-binding unbalanced braces or parens in {= … } the expression binding cannot be parsed. ui5 reports a parse error and the attribute stays unbound. error">
+        <h3><a href="#invalid-expression-binding">invalid-expression-binding</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">unbalanced braces or parens in <code>{= … }</code></p>
+        <p class="detail">The expression binding cannot be parsed. UI5 reports a parse error and the attribute stays unbound.</p>
+      </article>
+      <article class="rule" id="undeclared-namespace" data-search="undeclared-namespace ns = 'form' without an xmlns:form the prefix is used but never declared on the view root, so the parser cannot resolve the control at all. error">
+        <h3><a href="#undeclared-namespace">undeclared-namespace</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>ns = 'form'</code> without an <code>xmlns:form</code></p>
+        <p class="detail">The prefix is used but never declared on the view root, so the parser cannot resolve the control at all.</p>
+      </article>
+    </section>
+    <section class="cat" id="cat-version">
+      <h2>Version and deprecation</h2>
+      <p class="blurb">Portability against the UI5 version your system actually runs (--ui5, default 1.71) and the distribution it serves (--distribution).</p>
+      <article class="rule" id="control-deprecated" data-search="control-deprecated control already deprecated at your target version reported only once the deprecation is in effect at the version you target — a control deprecated as of 1.149 stays silent for a 1.71 target. warning">
+        <h3><a href="#control-deprecated">control-deprecated</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">control already deprecated at your target version</p>
+        <p class="detail">Reported only once the deprecation is in effect at the version you target — a control deprecated as of 1.149 stays silent for a 1.71 target.</p>
+      </article>
+      <article class="rule" id="control-too-new" data-search="control-too-new control introduced after your target ui5 version the control does not exist on the system you are targeting (--ui5, default 1.71), so the view will not load there — however well it works on a newer one. waive a deliberate case with --allow sap.m.control. warning">
+        <h3><a href="#control-too-new">control-too-new</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">control introduced after your target UI5 version</p>
+        <p class="detail">The control does not exist on the system you are targeting (<code>--ui5</code>, default 1.71), so the view will not load there — however well it works on a newer one. Waive a deliberate case with <code>--allow sap.m.Control</code>.</p>
+      </article>
+      <article class="rule" id="event-parameter-too-new" data-search="event-parameter-too-new a ${$parameters&gt;/name} the event only gained later an event parameter read back in a t_arg that the event did not carry yet at your floor. resolved per event, not per parameter name, so an identically named parameter on another event does not mask it. warning">
+        <h3><a href="#event-parameter-too-new">event-parameter-too-new</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">a <code>${$parameters&gt;/name}</code> the event only gained later</p>
+        <p class="detail">An event parameter read back in a <code>t_arg</code> that the event did not carry yet at your floor. Resolved per event, not per parameter name, so an identically named parameter on another event does not mask it.</p>
+      </article>
+      <article class="rule" id="member-deprecated" data-search="member-deprecated property or event already deprecated at your target version as control-deprecated, per member. the replacement is usually named in the deprecation text the finding quotes. warning">
+        <h3><a href="#member-deprecated">member-deprecated</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">property or event already deprecated at your target version</p>
+        <p class="detail">As <code>control-deprecated</code>, per member. The replacement is usually named in the deprecation text the finding quotes.</p>
+      </article>
+      <article class="rule" id="member-too-new" data-search="member-too-new property, event or aggregation introduced after your target version same as control-too-new, one level down. members without an @since count as always available — they predate version tracking. waive with --allow sap.m.control.member. warning">
+        <h3><a href="#member-too-new">member-too-new</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">property, event or aggregation introduced after your target version</p>
+        <p class="detail">Same as <code>control-too-new</code>, one level down. Members without an <code>@since</code> count as always available — they predate version tracking. Waive with <code>--allow sap.m.Control.member</code>.</p>
+      </article>
+      <article class="rule" id="sapui5-only-control" data-search="sapui5-only-control needs sapui5, absent from openui5 only with --distribution openui5. sapui5 ships libraries openui5 does not — sap.ui.comp (smart controls), sap.suite., sap.ushell, sap.fe, sap.viz — so a smarttable is fine on sapui5 and a guaranteed runtime error on openui5. error">
+        <h3><a href="#sapui5-only-control">sapui5-only-control</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">needs SAPUI5, absent from OpenUI5</p>
+        <p class="detail">Only with <code>--distribution openui5</code>. SAPUI5 ships libraries OpenUI5 does not — <code>sap.ui.comp</code> (Smart controls), <code>sap.suite.*</code>, <code>sap.ushell</code>, <code>sap.fe</code>, <code>sap.viz</code> — so a SmartTable is fine on SAPUI5 and a guaranteed runtime error on OpenUI5.</p>
+      </article>
+    </section>
+    <section class="cat" id="cat-abap2ui5">
+      <h2>abap2UI5 semantics</h2>
+      <p class="blurb">The defects that stay silent at runtime, because they live in the relationship between the ABAP class and the view it builds. No UI5 tooling can see them.</p>
+      <article class="rule" id="binding-for-event" data-search="binding-for-event _bind( ) on an event — a dead control the slot is an event, so a data binding in it never becomes a handler. the control renders and does nothing. use client-&gt;_event( ). error">
+        <h3><a href="#binding-for-event">binding-for-event</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>_bind( )</code> on an event — a dead control</p>
+        <p class="detail">The slot is an event, so a data binding in it never becomes a handler. The control renders and does nothing. Use <code>client-&gt;_event( )</code>.</p>
+      </article>
+      <article class="rule" id="binding-to-local" data-search="binding-to-local a local variable bound the instance is serialized across the roundtrip, the method stack is not — so the value is gone when the answer comes back. bind an instance attribute. warning">
+        <h3><a href="#binding-to-local">binding-to-local</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">a local variable bound</p>
+        <p class="detail">The instance is serialized across the roundtrip, the method stack is not — so the value is gone when the answer comes back. Bind an instance attribute.</p>
+      </article>
+      <article class="rule" id="collapsed-brace-in-style" data-search="collapsed-brace-in-style an escaped css brace written inside a |…| template an escape only reaches the serialized attribute when the backslash is taken verbatim, which is what a backtick literal does. inside an abap string template the backslash is the template's own escape: \{ collapses to a bare { before the builder ever sees it, and the view dies exactly as if nothing had been escaped. write the stylesheet in a backtick literal — or, if it has to be a template, double the backslash (\\\{). invisible to unescaped-brace-in-style, which reads the source and sees a backslash in front of every brace; only the literal's kind tells the two apart. error">
+        <h3><a href="#collapsed-brace-in-style">collapsed-brace-in-style</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">an escaped CSS brace written inside a <code>|…|</code> template</p>
+        <p class="detail">An escape only reaches the serialized attribute when the backslash is taken verbatim, which is what a backtick literal does. Inside an ABAP string template the backslash is the template's own escape: <code>\{</code> collapses to a bare <code>{</code> before the builder ever sees it, and the view dies exactly as if nothing had been escaped. Write the stylesheet in a backtick literal — or, if it has to be a template, double the backslash (<code>\\\{</code>). Invisible to <code>unescaped-brace-in-style</code>, which reads the source and sees a backslash in front of every brace; only the literal's kind tells the two apart.</p>
+        <pre><code>DATA(css) = |&lt;style&gt;.a \{color:red\}&lt;/style&gt;|.  " collapses
+DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></pre>
+      </article>
+      <article class="rule" id="event-arg-out-of-range" data-search="event-arg-out-of-range get_event_arg( n ) past the t_arg the event declares the arguments are static — they are written at the raise site — so reading past them is never anything but a mistake: initial in abap, a 500 in the transpiled runtime, and either way not the value the handler works with. judged only for a literal index, inside the handler of an event the class raises itself with client-&gt;_event( ), and never across a method boundary: an event arriving from a message_box_display( onclose = ) callback or a frontend action carries arguments from a source this pass cannot see. error">
+        <h3><a href="#event-arg-out-of-range">event-arg-out-of-range</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>get_event_arg( n )</code> past the <code>t_arg</code> the event declares</p>
+        <p class="detail">The arguments are static — they are written at the raise site — so reading past them is never anything but a mistake: initial in ABAP, a 500 in the transpiled runtime, and either way not the value the handler works with. Judged only for a literal index, inside the handler of an event the class raises itself with <code>client-&gt;_event( )</code>, and never across a method boundary: an event arriving from a <code>message_box_display( onclose = )</code> callback or a frontend action carries arguments from a source this pass cannot see.</p>
+        <pre><code>client-&gt;_event( val = `PICK` t_arg = VALUE #( ( `${$source&gt;/id}` ) ) )
+" … WHEN `PICK`. client-&gt;get_event_arg( 2 )</code></pre>
+      </article>
+      <article class="rule" id="event-arg-unresolved" data-search="event-arg-unresolved a bare-brace t_arg literal ( {col} ) the runtime sends it verbatim, but only $-prefixed expressions are resolved by ui5 — so get_event_arg( ) receives an empty value, with no error anywhere. write  ${col} . a template that starts with a {0} placeholder is fine: that form is quoted. warning">
+        <h3><a href="#event-arg-unresolved">event-arg-unresolved</a>
+          <span class="badge warning">warning</span>
+          <span class="badge fix">--fix</span>
+        </h3>
+        <p class="summary">a bare-brace <code>t_arg</code> literal (`<code> </code>{COL}<code> </code>`)</p>
+        <p class="detail">The runtime sends it verbatim, but only <code>$</code>-prefixed expressions are resolved by UI5 — so <code>get_event_arg( )</code> receives an <strong>empty</strong> value, with no error anywhere. Write `<code> </code>${COL}<code> </code><code>. A template that starts with a </code>{0}` placeholder is fine: that form is quoted.</p>
+        <p class="fixnote"><strong>--fix:</strong> The missing <code>$</code> is inserted in the literal form; a <code>|…|</code> template is left alone.</p>
+      </article>
+      <article class="rule" id="event-for-property" data-search="event-for-property _event( ) on a property the mirror image: an event handler written into a data slot. use client-&gt;_bind( ). error">
+        <h3><a href="#event-for-property">event-for-property</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>_event( )</code> on a property</p>
+        <p class="detail">The mirror image: an event handler written into a data slot. Use <code>client-&gt;_bind( )</code>.</p>
+      </article>
+      <article class="rule" id="event-without-handler" data-search="event-without-handler an event nothing reacts to usually a dead control — but in abap2ui5 an event also forces a roundtrip, and that alone synchronises the model back into abap. so this is a hint, never an error, and it is skipped entirely when handler names are not literals. hint">
+        <h3><a href="#event-without-handler">event-without-handler</a>
+          <span class="badge hint">hint</span>
+        </h3>
+        <p class="summary">an event nothing reacts to</p>
+        <p class="detail">Usually a dead control — but in abap2UI5 an event also forces a roundtrip, and that alone synchronises the model back into ABAP. So this is a hint, never an error, and it is skipped entirely when handler names are not literals.</p>
+      </article>
+      <article class="rule" id="invalid-frontend-action" data-search="invalid-frontend-action a frontend-action t_arg outside the set the runtime accepts a client-&gt;_event_client( ) / client-&gt;follow_up_action( ) wire is dispatched in the browser by name, and a name outside the whitelist raises nothing anywhere: frontendaction logs to the console and the control does nothing when pressed. judged only for literal arguments and only where the runtime's set is closed — the control_global object and its method, the binding_call method, and control_by_id's obsolete empty view slot (which shifts the method out of position). control_by_id's method list is open by design and is never judged. error">
+        <h3><a href="#invalid-frontend-action">invalid-frontend-action</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a frontend-action <code>t_arg</code> outside the set the runtime accepts</p>
+        <p class="detail">A <code>client-&gt;_event_client( )</code> / <code>client-&gt;follow_up_action( )</code> wire is dispatched in the browser by name, and a name outside the whitelist raises nothing anywhere: FrontendAction logs to the console and the control does nothing when pressed. Judged only for literal arguments and only where the runtime's set is closed — the <code>CONTROL_GLOBAL</code> object and its method, the <code>BINDING_CALL</code> method, and <code>CONTROL_BY_ID</code>'s obsolete empty view slot (which shifts the method out of position). <code>CONTROL_BY_ID</code>'s method list is open by design and is never judged.</p>
+        <pre><code>client-&gt;_event_client( val   = client-&gt;cs_event-control_global
+                       t_arg = VALUE #( ( `MESSAGE_TOASTER` ) ( `show` ) ( `hi` ) ) )</code></pre>
+      </article>
+      <article class="rule" id="obsolete-binder" data-search="obsolete-binder client-&gt;_bind_edit( ) — superseded by client-&gt;_bind( ) _bind is two-way as well. the one documented exception is a call passing custom_mapper_back or custom_filter_back, which _bind has no parameters for — such a call is not reported. warning">
+        <h3><a href="#obsolete-binder">obsolete-binder</a>
+          <span class="badge warning">warning</span>
+          <span class="badge fix">--fix</span>
+        </h3>
+        <p class="summary"><code>client-&gt;_bind_edit( )</code> — superseded by <code>client-&gt;_bind( )</code></p>
+        <p class="detail"><code>_bind</code> is two-way as well. The one documented exception is a call passing <code>custom_mapper_back</code> or <code>custom_filter_back</code>, which <code>_bind</code> has no parameters for — such a call is not reported.</p>
+        <p class="fixnote"><strong>--fix:</strong> Rewritten to <code>client-&gt;_bind( )</code>, the arguments untouched.</p>
+      </article>
+      <article class="rule" id="unconverted-abap-boolean" data-search="unconverted-abap-boolean an abap boolean written straight into the view it arrives as 'x' or ' ', and ui5 reads any non-empty string as true — so visible = abap_false makes the control visible. the classic silent inversion. wrap it in z2ui5_cl_ai_xml=&gt;as_bool( ). error">
+        <h3><a href="#unconverted-abap-boolean">unconverted-abap-boolean</a>
+          <span class="badge error">error</span>
+          <span class="badge fix">--fix</span>
+        </h3>
+        <p class="summary">an ABAP boolean written straight into the view</p>
+        <p class="detail">It arrives as <code>'X'</code> or <code>' '</code>, and UI5 reads any non-empty string as true — so <code>visible = abap_false</code> makes the control <strong>visible</strong>. The classic silent inversion. Wrap it in <code>z2ui5_cl_ai_xml=&gt;as_bool( )</code>.</p>
+        <p class="fixnote"><strong>--fix:</strong> A bare token is wrapped in <code>z2ui5_cl_ai_xml=&gt;as_bool( )</code>; an expression is left alone.</p>
+      </article>
+      <article class="rule" id="unescaped-brace-in-style" data-search="unescaped-brace-in-style literal css braces in a &lt;style&gt; block ui5's xmlview parser reads an unescaped { in an attribute value as the start of a binding, so a stylesheet injected through a core:html content attribute takes the whole view down with a binding parse error. write every brace as \{ and \}. judged between &lt;style&gt; and &lt;/style&gt;, so a {0} toast template or a ${$parameters&gt;/…} wire elsewhere in the same builder chain is never mistaken for css. error">
+        <h3><a href="#unescaped-brace-in-style">unescaped-brace-in-style</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">literal CSS braces in a <code>&lt;style&gt;</code> block</p>
+        <p class="detail">UI5's XMLView parser reads an unescaped <code>{</code> in an attribute value as the start of a binding, so a stylesheet injected through a <code>core:HTML</code> content attribute takes the whole view down with a binding parse error. Write every brace as <code>\{</code> and <code>\}</code>. Judged between <code>&lt;style&gt;</code> and <code>&lt;/style&gt;</code>, so a <code>{0}</code> toast template or a <code>${$parameters&gt;/…}</code> wire elsewhere in the same builder chain is never mistaken for CSS.</p>
+        <pre><code>DATA(css) = `&lt;style&gt;.box \{color:red\}&lt;/style&gt;`.</code></pre>
+      </article>
+      <article class="rule" id="unknown-binding-path" data-search="unknown-binding-path a hand-written {/typo} the derived model has no path for the field just stays empty — no error, anywhere. inside a bound aggregation a relative {typo} is resolved against the row, so a misspelled column field is caught too, but only where the row shape is known from the class's types. never guessed. warning">
+        <h3><a href="#unknown-binding-path">unknown-binding-path</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">a hand-written <code>{/TYPO}</code> the derived model has no path for</p>
+        <p class="detail">The field just stays empty — no error, anywhere. Inside a bound aggregation a relative <code>{TYPO}</code> is resolved against the row, so a misspelled column field is caught too, but only where the row shape is known from the class's <code>TYPES</code>. Never guessed.</p>
+      </article>
+      <article class="rule" id="unused-public-attribute" data-search="unused-public-attribute a public attribute nothing in the class ever touches only public attributes are serialized into the model (z2ui5_cl_core_srv_model filters on visibility), so every one of them is shipped to the browser on every roundtrip. one that is never bound, never read and never written is pure transport weight. deliberately narrower than "not bound in any view": an attribute used only in abap code is not dead, it is state — public is precisely how a value survives the roundtrip. only a name that appears exactly once in the whole class, its own declaration, is reported, and only as a hint: an attribute can still be read from outside the class, which no single source file can see. hint">
+        <h3><a href="#unused-public-attribute">unused-public-attribute</a>
+          <span class="badge hint">hint</span>
+        </h3>
+        <p class="summary">a PUBLIC attribute nothing in the class ever touches</p>
+        <p class="detail">Only PUBLIC attributes are serialized into the model (<code>z2ui5_cl_core_srv_model</code> filters on visibility), so every one of them is shipped to the browser on every roundtrip. One that is never bound, never read and never written is pure transport weight. Deliberately narrower than "not bound in any view": an attribute used only in ABAP code is not dead, it is *state* — PUBLIC is precisely how a value survives the roundtrip. Only a name that appears exactly once in the whole class, its own declaration, is reported, and only as a hint: an attribute can still be read from outside the class, which no single source file can see.</p>
+      </article>
+      <article class="rule" id="view-never-displayed" data-search="view-never-displayed a view is built but never handed to the client an empty page and no error: the builder ran, the result was never passed to client-&gt;view_display( ) (or a popup/nav call). error">
+        <h3><a href="#view-never-displayed">view-never-displayed</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a view is built but never handed to the client</p>
+        <p class="detail">An empty page and no error: the builder ran, the result was never passed to <code>client-&gt;view_display( )</code> (or a popup/nav call).</p>
+      </article>
+    </section>
+    <section class="cat" id="cat-data">
+      <h2>Data and usability</h2>
+      <p class="blurb">The view loads and renders — but not with the data, or not for the user, the author had in mind.</p>
+      <article class="rule" id="binding-type-mismatch" data-search="binding-type-mismatch an abap character field bound to a numeric or boolean ui5 property the model ships json, so a type string (or c, n, d) field arrives as "100" where the property declared a float. ui5 1.71 coerces it; ui5 2.x and the render gate's future mode reject the view outright ("100" is of type string, expected float). declare the field with the matching abap type, or convert it before it reaches the model. only reported when the field's type is known from the class's own declarations. warning">
+        <h3><a href="#binding-type-mismatch">binding-type-mismatch</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">an ABAP character field bound to a numeric or boolean UI5 property</p>
+        <p class="detail">The model ships JSON, so a <code>TYPE string</code> (or <code>c</code>, <code>n</code>, <code>d</code>) field arrives as <code>"100"</code> where the property declared a float. UI5 1.71 coerces it; UI5 2.x and the render gate's future mode reject the view outright (<code>"100" is of type string, expected float</code>). Declare the field with the matching ABAP type, or convert it before it reaches the model. Only reported when the field's type is known from the class's own declarations.</p>
+        <pre><code>DATA percent TYPE string.
+" … )-&gt;a( n = `percentValue` v = client-&gt;_bind( percent )</code></pre>
+      </article>
+      <article class="rule" id="collection-bound-to-property" data-search="collection-bound-to-property a table or structure bound to a scalar property the property receives an object where it expects a value. nothing throws; the control shows nothing useful. error">
+        <h3><a href="#collection-bound-to-property">collection-bound-to-property</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a table or structure bound to a scalar property</p>
+        <p class="detail">The property receives an object where it expects a value. Nothing throws; the control shows nothing useful.</p>
+      </article>
+      <article class="rule" id="missing-accessibility" data-search="missing-accessibility icon-only button without tooltip, image without alt the control is unusable with a screen reader. never wrong by itself, so it is a hint — switch it off per repo with "missing-accessibility": false if your corpus has made another decision. hint">
+        <h3><a href="#missing-accessibility">missing-accessibility</a>
+          <span class="badge hint">hint</span>
+        </h3>
+        <p class="summary">icon-only <code>Button</code> without <code>tooltip</code>, <code>Image</code> without <code>alt</code></p>
+        <p class="detail">The control is unusable with a screen reader. Never wrong by itself, so it is a hint — switch it off per repo with <code>"missing-accessibility": false</code> if your corpus has made another decision.</p>
+      </article>
+      <article class="rule" id="missing-required-aggregation" data-search="missing-required-aggregation a table bound to rows but given no columns — renders empty the control has data but not the aggregation it needs to show any of it. nothing fails: the table renders, and it renders empty, which is the hardest kind of bug to see in a screenshot. warning">
+        <h3><a href="#missing-required-aggregation">missing-required-aggregation</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">a <code>Table</code> bound to rows but given no <code>columns</code> — renders empty</p>
+        <p class="detail">The control has data but not the aggregation it needs to show any of it. Nothing fails: the table renders, and it renders empty, which is the hardest kind of bug to see in a screenshot.</p>
+      </article>
+    </section>
+
+  <footer>
+    Generated from the rule registry of
+    <a href="https://github.com/abap2UI5/linter">abap2UI5-linter</a> — do not edit by hand.
+    Metadata snapshot and gate details are described in the
+    <a href="https://github.com/abap2UI5/linter#readme">README</a>.
+  </footer>
+</div>
+<script>
+const input = document.getElementById('filter');
+const rules = [...document.querySelectorAll('article.rule')];
+// only the rule sections take part in filtering - the usage section stays
+const cats = [...document.querySelectorAll('section.cat')].filter((c) => c.querySelector('article.rule'));
+const empty = document.querySelector('.empty');
+const apply = () => {
+  const q = input.value.trim().toLowerCase();
+  for (const r of rules) r.hidden = q && !r.dataset.search.includes(q);
+  for (const c of cats) c.hidden = ![...c.querySelectorAll('article.rule')].some((r) => !r.hidden);
+  empty.style.display = rules.every((r) => r.hidden) ? 'block' : 'none';
+};
+input.addEventListener('input', apply);
+// a deep link should never land on a rule the filter is hiding
+addEventListener('hashchange', () => { input.value = ''; apply(); });
+apply();
+</script>
+</body>
+</html>
