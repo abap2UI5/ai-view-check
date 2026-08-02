@@ -1,0 +1,7 @@
+<mvc:View xmlns="sap.m" xmlns:mvc="sap.ui.core.mvc">
+  <Page title="Positions in raw XML">
+    <content>
+      <Button type="Emphasised" text="the enum value is misspelled"/>
+    </content>
+  </Page>
+</mvc:View>

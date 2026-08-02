@@ -23,6 +23,8 @@ Two gates:
    | `control-deprecated` / `member-deprecated` | control or property already deprecated at your target version |
    | `duplicate-aggregation` | the same aggregation opened twice under one control — the second tag replaces the first |
    | `excess-shut` | one `shut( )` more than the builder tree is deep — asserts at runtime |
+   | `duplicate-property` | the same attribute written twice on one control — `z2ui5_cl_ai_xml` asserts on it |
+   | `attribute-without-element` | `a( )` on the bare factory root — nothing to attach it to, asserts too |
    | `duplicate-id` | the same `id` twice — duplicate-ID error at runtime |
    | `undeclared-namespace` | `ns = 'form'` without an `xmlns:form` |
    | `invalid-expression-binding` | unbalanced braces/parens in `{= … }` |
@@ -49,6 +51,27 @@ Two gates:
    | `view-never-displayed` | a view is built but never handed to the client — an empty page, no error |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
 
+Every finding carries a **severity**, a ready-made **message** and — where
+the gate could place it — the **line and column** in the file it came from:
+
+```
+FAIL  src/zcl_my_app.clas.abap  (1 doc(s))
+         20:9   error    a( n = `title` ) without an element to attach it to — z2ui5_cl_ai_xml asserts on that
+         31:18  error    text is set twice on the same control — z2ui5_cl_ai_xml asserts on that
+         44:22  warning  sap.m.GenericTile systemInfo is @since 1.92.0 — newer than the 1.71 floor
+         51:35  hint     event NO_HANDLER is raised but never handled — dead control, unless the roundtrip alone is intended
+```
+
+| Severity | Meaning |
+| --- | --- |
+| `error` | the app breaks: a dump, a control that will not load, a value UI5 rejects, or a defect that silently destroys the view |
+| `warning` | it works where it was written, but not necessarily on the target system (version floor, deprecation) — or the data behind it is not what the author thinks it is |
+| `hint` | worth knowing, never wrong by itself |
+
+`--fail-on error|warning|hint|never` decides which of them break the build
+(default `warning`; `--advisory` is `--fail-on never`). Everything is always
+*reported* — the threshold only sets the exit code.
+
 2. **Render gate** — the view is loaded with a real `XMLView.create` in
    headless Chromium against the OpenUI5 runtime served locally from the
    `@openui5/*` npm packages, with UI5 *future mode* active — so a typo'd
@@ -73,11 +96,13 @@ node cli.mjs src                          # check everything under src/
 node cli.mjs src --ui5 1.120              # check against UI5 1.120
 node cli.mjs src --allow sap.m.GenericTile.systemInfo   # accepted deviation
 node cli.mjs src --no-render              # property gate only (no browser)
+node cli.mjs src --fail-on error          # only real breakage fails CI
 node cli.mjs src --advisory               # report, never fail the build
 node cli.mjs src --json                   # machine-readable output (for tools)
 ```
 
-Exit code 1 on any finding (unless `--advisory`) — CI-ready.
+Exit code 1 on any finding at or above `--fail-on` (default: `warning`) and
+on any render error — CI-ready.
 
 ### SAPUI5 or OpenUI5
 
@@ -120,6 +145,7 @@ jobs:
         with:
           paths: src
           min-ui5: '1.71'
+          fail-on: warning
           flags: '--allow sap.m.GenericTile.systemInfo'
 ```
 
@@ -129,8 +155,23 @@ jobs:
 import { checkFiles, checkAbapSource, checkXmlSource } from '@abap2ui5/linter';
 
 const results = await checkFiles(['src/zcl_my_app.clas.abap']);
-// -> [{ file, findings: [{type, control, member, since}], renderErrors, docs, model }]
+// -> [{ file, findings: [...], renderErrors, docs, model }]
+//    finding: { type, control, member, severity, message, line, column, ... }
 ```
+
+`checkFiles`/`checkAbapSource`/`checkXmlSource` annotate their findings
+themselves. Anything driving the gates directly (`checkNodes`,
+`checkAbapRules`) gets the same from the `findings` subpath, so severity and
+wording are never reinvented per consumer:
+
+```js
+import { annotate, severityOf, describe } from '@abap2ui5/linter/findings';
+
+annotate(findings, source); // adds severity, message, line, column in place
+```
+
+`--json` output carries the annotated findings plus a `totals` count per
+severity.
 
 Consumers: the [ai-mcp](https://github.com/abap2UI5/ai-mcp) server exposes
 these gates as MCP tools for AI coding agents; the

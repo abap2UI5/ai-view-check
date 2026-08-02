@@ -7,11 +7,14 @@
  *   broken.clas.abap    render gate: typo property + unknown control
  *   structure.clas.abap unknown control/property/aggregation, bad enum and
  *                       numeric values, 0..1 overfilled, excess shut( )
+ *   dumps.clas.abap     builder calls z2ui5_cl_ai_xml ASSERTs on
  *   sample.view.xml     raw XML path: no findings, renders clean
  */
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { checkFiles } from '../lib/index.mjs';
+import { severityOf } from '../lib/findings.mjs';
 
 const FIX = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const f = (n) => path.join(FIX, n);
@@ -114,6 +117,44 @@ assert(hasV('collection-bound-to-property', (x) => x.member === 'headerText'),
   'view rules: a table bound to a scalar property');
 assert(!hasV('invalid-expression-binding'),
   'view rules: a well-formed expression binding is not flagged');
+
+// the builder ASSERTs the app never survives: a( ) with nothing to attach it
+// to, and one attribute name written twice on the same control
+const dumps = (await checkFiles([f('dumps.clas.abap')], { render: false }))[0];
+const hasD = (t, pred = () => true) => dumps.findings.some((x) => x.type === t && pred(x));
+assert(hasD('attribute-without-element', (x) => x.member === 'title'),
+  'dumps: a( ) on the bare factory root - z2ui5_cl_ai_xml asserts');
+assert(hasD('duplicate-property', (x) => x.member === 'text' && x.control === 'Button'),
+  'dumps: the same attribute set twice on one control - z2ui5_cl_ai_xml asserts');
+assert(dumps.docs[0].split('text="').length === 2,
+  'dumps: the refused duplicate is not carried into the reconstructed XML');
+
+// every finding carries where it came from, what it means and how bad it is -
+// so an editor can place it and a build can decide on it
+const posSrc = fs.readFileSync(f('dumps.clas.abap'), 'utf8').split('\n');
+const dup = dumps.findings.find((x) => x.type === 'duplicate-property');
+assert(dup.line > 0 && posSrc[dup.line - 1].includes('Save and close'),
+  `dumps: the finding points at the SECOND text attribute (line ${dup.line})`);
+assert(posSrc[dup.line - 1].slice(dup.column - 1).startsWith('->a('),
+  `dumps: the column points at the a( ) call itself (col ${dup.column})`);
+assert(dup.severity === 'error' && typeof dup.message === 'string' && dup.message.length > 10,
+  'findings: severity and a ready-made message travel with the finding');
+
+// severity is the linter's judgement, not the caller's guesswork
+assert(severityOf({ type: 'unknown-control' }) === 'error',
+  'severity: a control that does not exist breaks the app - error');
+assert(severityOf({ type: 'control-too-new' }) === 'warning',
+  'severity: the version floor is a portability warning');
+assert(severityOf({ type: 'event-without-handler' }) === 'hint',
+  'severity: an unhandled event is a hint - the roundtrip alone may be the point');
+assert(severityOf({ type: 'brand-new-rule-nobody-classified' }) === 'error',
+  'severity: an unclassified type stays loud rather than being silently dropped');
+
+// positions in raw XML are just as exact as in a builder class
+const xmlPos = (await checkFiles([f('badvalue.view.xml')], { render: false }))[0];
+const bad = xmlPos.findings.find((x) => x.type === "invalid-property-value");
+assert(bad?.line === 4 && bad?.column === 15,
+  `xml: the invalid value is located at 4:15 (got ${bad?.line}:${bad?.column})`);
 
 const xml = by('sample.view.xml');
 assert(xml.kind === 'xml', 'xml: raw view detected');
