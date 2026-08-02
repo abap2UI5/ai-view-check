@@ -214,7 +214,20 @@ function declarations(body) {
 
 function classMeta(src, name) {
   const em = src.match(new RegExp(`\\.extend\\(\\s*["']${name.replace(/\./g, '\\.')}["']`));
-  const header = em ? src.slice(0, em.index) : src.slice(0, 4000);
+  /* The class's own JSDoc is the LAST block before its .extend( ) call, with
+   * nothing but the assignment in between. Scanning everything above the
+   * extend instead picks up whatever @deprecated a neighbouring symbol
+   * carries - which is how sap.f.DynamicPageTitle, a current control, came
+   * out deprecated: the block above it belongs to a local
+   * `var DynamicPageTitleArea = library.DynamicPageTitleArea;`. */
+  const before = em ? src.slice(0, em.index) : src.slice(0, 4000);
+  const blocks = [...before.matchAll(/\/\*\*([\s\S]*?)\*\//g)];
+  const last = blocks[blocks.length - 1];
+  // a `;` or `}` between the block and the extend means the block documents
+  // that statement, not the class
+  const header = last && !/[;}]/.test(before.slice(last.index + last[0].length))
+    ? last[1]
+    : '';
   const sinceM = header.match(/@(?:ui5-experimental-)?since\s+(?:version\s+)?([\d.]+)/i);
   const depM = header.match(/@deprecated(?:\s+As of(?:\s+version)?\s+([\d.]+))?([^\n]*)/i);
   return {
