@@ -22,6 +22,8 @@ CLASS zcl_fixture_viewrules IMPLEMENTATION.
             )->a( n = `icon` v = `sap-icon://add`
           )->leaf( `Text`
             )->a( n = `text` v = `{= ${/NAME} === 'x' ? 'yes' : 'no' }`
+          )->leaf( `Text`
+            )->a( n = `tooltip` v = client->_event( `WRONG_SLOT` )
           )->leaf( n = `Title` ns = `undeclared`
         )->shut(
         )->open( `content`

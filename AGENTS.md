@@ -13,7 +13,7 @@ and GitHub Action, no SAP system required.
 ```bash
 npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
-npm test                          # test/run.mjs, home-grown asserts, ~80 assertions
+npm test                          # test/run.mjs, home-grown asserts, ~83 assertions
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
 # settings can be pinned in the checked repo's abap2ui5lint.jsonc (lib/config.mjs;
 # CLI flag > config > default; unknown keys fail loudly)
@@ -58,8 +58,8 @@ emit sites. Current inventory (grep the id to find the exact line):
 3. a row in the README finding-type table.
 
 Known test-coverage debt (assert these when touching the area):
-`invalid-aggregation-child`, `event-for-property`, `view-never-displayed`,
-`sapui5-only-control` and `open-levels` currently have no test assertion.
+`invalid-aggregation-child`, `sapui5-only-control` and `open-levels`
+currently have no test assertion.
 
 ## Static-check roadmap — app knowledge that can still move into the gate
 

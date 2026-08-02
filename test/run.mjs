@@ -132,6 +132,8 @@ assert(hasV('member-deprecated', (x) => x.member === 'translucent'),
   'view rules: a deprecated property reported (version-aware, like controls)');
 assert(hasV('missing-required-aggregation', (x) => x.member === 'columns'),
   'view rules: a Table bound to rows but given no columns');
+assert(hasV('event-for-property', (x) => x.member === 'tooltip'),
+  'view rules: an event handler written into a property slot');
 assert(hasV('collection-bound-to-property', (x) => x.member === 'headerText'),
   'view rules: a table bound to a scalar property');
 assert(!hasV('invalid-expression-binding'),
@@ -299,6 +301,16 @@ assert(xml.kind === 'xml', 'xml: raw view detected');
 assert(xml.findings.length === 0, 'xml: no property findings');
 assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0] || ''})`);
 
+
+// a view that is built and never handed to the client
+{
+  const nd = (await checkFiles([f('nodisplay.clas.abap')], { render: false }))[0];
+  assert(nd.findings.some((x) => x.type === 'view-never-displayed'),
+    'abap rules: a view built but never displayed - an empty page, no error');
+  const shown = (await checkFiles([f('good.clas.abap')], { render: false }))[0];
+  assert(!shown.findings.some((x) => x.type === 'view-never-displayed'),
+    'abap rules: a displayed view is not reported');
+}
 
 // ---------------------------------------------------------------- config ----
 {
