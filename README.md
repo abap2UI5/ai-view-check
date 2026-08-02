@@ -37,6 +37,7 @@ node cli.mjs src --min-ui5 1.71           # explicit UI5 floor
 node cli.mjs src --allow sap.m.GenericTile.systemInfo   # accepted deviation
 node cli.mjs src --no-render              # property gate only (no browser)
 node cli.mjs src --advisory               # report, never fail the build
+node cli.mjs src --json                   # machine-readable output (for tools)
 ```
 
 Exit code 1 on any finding (unless `--advisory`) — CI-ready.

@@ -26,7 +26,7 @@ import path from 'path';
 import { checkFiles, collectFiles } from './lib/index.mjs';
 
 const args = process.argv.slice(2);
-const opt = { minUi5: '1.71', allow: [], render: true, properties: true, advisory: false, verbose: false };
+const opt = { minUi5: '1.71', allow: [], render: true, properties: true, advisory: false, verbose: false, json: false };
 const paths = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -36,8 +36,9 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--no-properties') opt.properties = false;
   else if (a === '--advisory') opt.advisory = true;
   else if (a === '--verbose') opt.verbose = true;
+  else if (a === '--json') opt.json = true;
   else if (a === '--help' || a === '-h') {
-    console.log('usage: view-check [paths...] [--min-ui5 1.71] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--verbose]');
+    console.log('usage: view-check [paths...] [--min-ui5 1.71] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
     process.exit(0);
   } else paths.push(a);
 }
@@ -45,6 +46,10 @@ if (!paths.length) paths.push('src');
 
 const files = collectFiles(paths);
 if (!files.length) {
+  if (opt.json) {
+    console.log(JSON.stringify({ files: 0, failing: 0, skipped: 0, results: [] }));
+    process.exit(0);
+  }
   console.log(`view-check: no checkable files under ${paths.join(', ')} (ABAP classes using z2ui5_cl_ai_xml, *.view.xml, *.fragment.xml)`);
   process.exit(0);
 }
@@ -58,11 +63,12 @@ for (const r of results) {
   const problems = r.findings.length + r.renderErrors.length;
   if (r.skippedRender && !problems) {
     skipped++;
-    console.log(`SKIP  ${rel}  (${r.helperTokens} builder call(s) in helper methods — not statically reconstructable, render gate skipped)`);
+    if (!opt.json) console.log(`SKIP  ${rel}  (${r.helperTokens} builder call(s) in helper methods — not statically reconstructable, render gate skipped)`);
     continue;
   }
-  const status = problems ? 'FAIL' : 'pass';
   if (problems) failing++;
+  if (opt.json) continue;
+  const status = problems ? 'FAIL' : 'pass';
   console.log(`${status}  ${rel}${r.docs.length ? `  (${r.docs.length} doc(s))` : ''}`);
   for (const f of r.findings) {
     if (f.type === 'control-too-new') console.log(`      control ${f.control} is @since ${f.since} — newer than the ${f.minUi5} floor`);
@@ -73,5 +79,25 @@ for (const r of results) {
   if (opt.verbose) for (const n of r.notes) console.log(`      note: ${n}`);
 }
 
-console.log(`\nview-check: ${results.length} file(s), ${failing} failing, ${skipped} skipped.`);
+if (opt.json) {
+  // machine-readable output for tool integrations (e.g. the VS Code
+  // extension) — docs and model are omitted, they can be megabytes
+  console.log(JSON.stringify({
+    files: results.length,
+    failing,
+    skipped,
+    results: results.map((r) => ({
+      file: r.file,
+      kind: r.kind,
+      usesBuilder: r.usesBuilder ?? true,
+      findings: r.findings,
+      renderErrors: r.renderErrors,
+      skippedRender: r.skippedRender,
+      helperTokens: r.helperTokens,
+      notes: r.notes,
+    })),
+  }));
+} else {
+  console.log(`\nview-check: ${results.length} file(s), ${failing} failing, ${skipped} skipped.`);
+}
 if (!opt.advisory && failing > 0) process.exit(1);
