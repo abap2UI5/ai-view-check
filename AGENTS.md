@@ -39,10 +39,11 @@ emit sites. Current inventory (grep the id to find the exact line):
 
 | Emitting file | Finding types |
 | --- | --- |
-| `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `invalid-property-value`, `unknown-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `missing-accessibility` |
+| `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `missing-accessibility` |
 | `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `view-never-displayed` |
-| `lib/reconstruct.mjs` | `excess-shut` (via `prep.structure`, consumed in `lib/index.mjs`) |
+| `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
+| `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, messages). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
 
 **A new rule moves three places together** — forgetting one has happened:
 
@@ -51,9 +52,8 @@ emit sites. Current inventory (grep the id to find the exact line):
 3. a row in the README finding-type table.
 
 Known test-coverage debt (assert these when touching the area):
-`control-too-new`, `invalid-aggregation-child`, `event-for-property`,
-`view-never-displayed`, and the positive case of
-`invalid-expression-binding` currently have no test assertion.
+`invalid-aggregation-child`, `event-for-property`, `view-never-displayed`,
+`sapui5-only-control` and `open-levels` currently have no test assertion.
 
 ## `data/properties.json` is generated — never hand-edit
 
@@ -87,27 +87,30 @@ the README).
   `package-lock.json` for the bundled property gate — a new finding type is
   invisible in the editor until that lock is bumped there.
 
-## Relation to ai-demokit — who is canonical
+## Relation to ai-demokit — this repo is canonical now
 
-This repo is the **corpus-independent extraction** of ai-demokit's
-`property-check.mjs` / `render-smoke.mjs` / `generate-properties.mjs`.
-The ancestors still live in ai-demokit (with their own, older
-`ui5/properties.json` — 925 controls, different shape) because its gates
-run against the port corpus with corpus-specific conventions. Rules of
-thumb:
+ai-demokit's ancestor scripts (`property-check.mjs`, `structure-lint.mjs`,
+`render-smoke.mjs`) were **deleted** when its gates were consolidated onto
+this linter: ai-demokit consumes `@abap2ui5/linter` as a git npm dependency
+and keeps only the corpus policy in its `scripts/view-gates.mjs` (which
+ports, POST_171 deviations, declared skips, advisories). Rules of thumb:
 
-- **New generic view-checking logic belongs here**; ai-demokit-specific
-  gate logic (sidecar deviations, corpus conventions) stays there.
-- A bug found in shared logic is probably in **both** — check the ancestor
-  when fixing, and vice versa.
-- The two `properties.json` snapshots are **independent artifacts with
-  different shapes** — never copy one over the other.
+- **All generic view-checking logic lives here**; ai-demokit-specific gate
+  policy (sidecar deviations, corpus conventions) stays in `view-gates.mjs`.
+- A behaviour change here changes ai-demokit's CI verdicts on the next
+  dependency bump — check the corpus impact (`npm run view-gates` there)
+  for changes to severities, finding types or the reconstructor.
+- ai-demokit's own `ui5/properties.json` (older shape) now feeds only its
+  coverage docs, not the gates — never copy one snapshot over the other.
+- When ai-demokit's dependency points at a feature branch of this repo
+  (`github:abap2UI5/abap2UI5-linter#<branch>`), it must go back to plain
+  `github:abap2UI5/abap2UI5-linter` once that branch is merged.
 
 ## Related repositories
 
 | Repository | Relation |
 | --- | --- |
-| [ai-demokit](https://github.com/abap2UI5/ai-demokit) | Origin of the gate logic; still runs its own corpus-specific ancestors |
+| [ai-demokit](https://github.com/abap2UI5/ai-demokit) | Origin of the gate logic; now consumes this package via `scripts/view-gates.mjs` (git npm dependency) |
 | [ai-mcp](https://github.com/abap2UI5/ai-mcp) | `validate_view` imports `lib/index.mjs` + `lib/render.mjs` **by path** — a file-layout refactor here breaks it even if `exports` stays intact |
 | [vscode-extension](https://github.com/abap2UI5-addons/vscode-extension) | Consumes the SHA-pinned package (property gate) and the runtime `render-gate-bundle` download |
 | [abap2UI5](https://github.com/abap2UI5/abap2UI5) | Defines `z2ui5_cl_ai_xml`, the builder whose chains `lib/reconstruct.mjs` re-executes |
