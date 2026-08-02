@@ -12,7 +12,8 @@
     "./properties": "./lib/properties.mjs",
     "./render": "./lib/render.mjs",
     "./abap-rules": "./lib/abap-rules.mjs",
-    "./findings": "./lib/findings.mjs"
+    "./findings": "./lib/findings.mjs",
+    "./config": "./lib/config.mjs"
   },
   "files": [
     "cli.mjs",

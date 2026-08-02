@@ -8,7 +8,7 @@ generated ports of the official UI5 demo kit samples.
 Two gates:
 
 1. **Property gate** — everything the view writes is resolved against a UI5
-   metadata snapshot (985 controls with their full member lists and types,
+   metadata snapshot (970 controls with their full member lists and types,
    219 enums, generated from the OpenUI5 sources). It reports:
 
    | Finding | Example |
@@ -52,6 +52,7 @@ Two gates:
    | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
    | `view-never-displayed` | a view is built but never handed to the client — an empty page, no error |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
+   | `event-arg-unresolved` | a bare-brace `t_arg` literal (`` `{COL}` ``): the runtime sends it verbatim but only `$`-prefixed expressions are resolved by UI5, so `get_event_arg( )` receives an **empty** value with no error anywhere. Write `` `${COL}` `` (a template *starting* with a `{0}` placeholder is fine — that form is quoted) |
 
 Every finding carries a **severity**, a ready-made **message** and — where
 the gate could place it — the **line and column** in the file it came from:
@@ -134,6 +135,28 @@ printed in the CLI summary and stored as `ui5Version`). Existence checks are
 therefore made against that snapshot: a control **removed** in a later UI5
 than your target cannot be distinguished from a typo, so keep the snapshot at
 or above the versions you target.
+
+## Configuration file — `abap2ui5lint.jsonc`
+
+Pin the settings in the checked repo instead of repeating CLI flags — same
+idea as `abaplint.jsonc`. Discovery is eslint-style: `--config <file>` wins,
+otherwise the file is searched upward from the current directory and from
+each given path. Precedence per option: explicit CLI flag > config file >
+built-in default (`--no-config` ignores the file entirely).
+
+```jsonc
+{
+  "paths": ["src"],          // used when the CLI got no positional paths
+  "ui5": "1.71",             // UI5 floor for the property gate
+  "distribution": "sapui5",  // or "openui5"
+  "failOn": "warning",       // error | warning | hint | never
+  "render": true,            // false = skip the render gate (--no-render)
+  "allow": []                // e.g. ["sap.m.Avatar.displaySize"]
+}
+```
+
+Unknown keys fail loudly (typo protection). The GitHub Action defers to the
+repo's config for every input you leave unset.
 
 ## GitHub Action
 

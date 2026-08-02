@@ -106,6 +106,16 @@ assert(hasR('unconverted-abap-boolean', (x) => x.member === 'expanded' && x.valu
   'abap rules: an ABAP boolean written into the view without as_bool( )');
 assert(hasR('unknown-binding-path', (x) => x.value === '/TYPOED_PATH'),
   'abap rules: a hand-written binding path the model does not have');
+assert(hasR('event-arg-unresolved', (x) => x.value === '{BARE_BRACE}'),
+  'abap rules: a bare-brace t_arg arrives empty - must be $-prefixed');
+assert(!hasR('event-arg-unresolved', (x) => x.value.includes('RESOLVED')),
+  'abap rules: a $-prefixed t_arg is fine');
+assert(!hasR('event-arg-unresolved', (x) => x.value.startsWith('{0}')),
+  'abap rules: a {N} template placeholder t_arg is quoted, not empty');
+assert(!hasR('event-arg-unresolved', (x) => /lv_local/.test(x.value)),
+  'abap rules: |{ var }| is an ABAP string template - interpolated server-side, not a binding');
+assert(!hasR('event-arg-unresolved', (x) => /URL:/.test(x.value)),
+  'abap rules: a brace object in a FRONTEND action t_arg (_event_client) is its parameter set, not a binding');
 
 const vr = (await checkFiles([f('viewrules.clas.abap')], { render: false }))[0];
 const hasV = (t, pred = () => true) => vr.findings.some((x) => x.type === t && pred(x));
@@ -122,6 +132,8 @@ assert(hasV('member-deprecated', (x) => x.member === 'translucent'),
   'view rules: a deprecated property reported (version-aware, like controls)');
 assert(hasV('missing-required-aggregation', (x) => x.member === 'columns'),
   'view rules: a Table bound to rows but given no columns');
+assert(hasV('event-for-property', (x) => x.member === 'tooltip'),
+  'view rules: an event handler written into a property slot');
 assert(hasV('collection-bound-to-property', (x) => x.member === 'headerText'),
   'view rules: a table bound to a scalar property');
 assert(!hasV('invalid-expression-binding'),
@@ -288,6 +300,69 @@ const xml = by('sample.view.xml');
 assert(xml.kind === 'xml', 'xml: raw view detected');
 assert(xml.findings.length === 0, 'xml: no property findings');
 assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0] || ''})`);
+
+
+// a view that is built and never handed to the client
+{
+  const nd = (await checkFiles([f('nodisplay.clas.abap')], { render: false }))[0];
+  assert(nd.findings.some((x) => x.type === 'view-never-displayed'),
+    'abap rules: a view built but never displayed - an empty page, no error');
+  const shown = (await checkFiles([f('good.clas.abap')], { render: false }))[0];
+  assert(!shown.findings.some((x) => x.type === 'view-never-displayed'),
+    'abap rules: a displayed view is not reported');
+}
+
+// ---------------------------------------------------------------- config ----
+{
+  const os = await import('node:os');
+  const cp = await import('node:child_process');
+  const { stripJsonc, loadConfig, applyConfig, findConfig, CONFIG_NAME } = await import('../lib/config.mjs');
+  const CLI = path.join(FIX, '..', '..', 'cli.mjs');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui5lint-'));
+  const sub = path.join(dir, 'nested', 'deep');
+  fs.mkdirSync(sub, { recursive: true });
+  const cfgFile = path.join(dir, CONFIG_NAME);
+  fs.writeFileSync(cfgFile, `{
+  // comment survives
+  "ui5": "1.96",
+  "failOn": "hint",
+  "render": false,
+  "allow": ["sap.m.Avatar"], // trailing comma next
+}`);
+
+  assert(JSON.parse(stripJsonc('{"a":1,/*x*/"b":"//not a comment",}')).b === '//not a comment',
+    'config: stripJsonc keeps // inside strings');
+
+  const cfg = loadConfig(cfgFile);
+  assert(cfg.minUi5 === '1.96' && cfg.failOn === 'hint' && cfg.render === false,
+    'config: jsonc parsed with comments and trailing commas');
+
+  assert(findConfig(sub) === cfgFile, 'config: discovered walking upward from a nested dir');
+
+  const opt = { minUi5: '1.71', failOn: 'warning', render: true, allow: ['sap.m.Page.x'] };
+  applyConfig(opt, new Set(['failOn']), cfg);
+  assert(opt.minUi5 === '1.96', 'config: fills an option the CLI did not set');
+  assert(opt.failOn === 'warning', 'config: an explicit CLI flag beats the config');
+  assert(opt.allow.includes('sap.m.Avatar') && opt.allow.includes('sap.m.Page.x'),
+    'config: allow lists merge');
+
+  let threw = '';
+  fs.writeFileSync(path.join(dir, 'bad.jsonc'), '{"tpyo": 1}');
+  try { loadConfig(path.join(dir, 'bad.jsonc')); }
+  catch (e) { threw = e.message; }
+  assert(/unknown key 'tpyo'/.test(threw), 'config: an unknown key fails loudly');
+
+  // end-to-end: the CLI picks the config up from the checked path's directory
+  // (cwd is this repo, which has no config - discovery must come from the path)
+  fs.copyFileSync(f('good.clas.abap'), path.join(sub, 'good.clas.abap'));
+  const out = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap')], { encoding: 'utf8' });
+  assert(/target SAPUI5 1\.96/.test(out) && /failing on hint/.test(out),
+    'config: cli applies ui5/failOn from the discovered abap2ui5lint.jsonc');
+  const off = cp.execFileSync('node', [CLI, path.join(sub, 'good.clas.abap'), '--no-config'], { encoding: 'utf8' });
+  assert(/target SAPUI5 1\.71/.test(off), 'config: --no-config restores the defaults');
+  fs.rmSync(dir, { recursive: true, force: true });
+}
 
 console.log(failed ? `\n${failed} assertion(s) failed` : '\nall assertions passed');
 process.exit(failed ? 1 : 0);
