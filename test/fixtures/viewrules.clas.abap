@@ -2,6 +2,7 @@ CLASS zcl_fixture_viewrules DEFINITION PUBLIC.
   PUBLIC SECTION.
     INTERFACES z2ui5_if_app.
     DATA name TYPE string.
+    DATA tab TYPE STANDARD TABLE OF string WITH EMPTY KEY.
 ENDCLASS.
 
 CLASS zcl_fixture_viewrules IMPLEMENTATION.
@@ -31,7 +32,10 @@ CLASS zcl_fixture_viewrules IMPLEMENTATION.
           )->leaf( `Text`
             )->a( n = `text` v = `second`
           )->leaf( `Bar`
-            )->a( n = `translucent` v = `true` ).
+            )->a( n = `translucent` v = `true`
+          )->open( `Table`
+            )->a( n = `items` v = client->_bind( tab )
+            )->a( n = `headerText` v = client->_bind( tab ) ).
 
     client->view_display( view->stringify( ) ).
 

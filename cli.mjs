@@ -82,7 +82,10 @@ for (const r of results) {
   const status = problems ? 'FAIL' : 'pass';
   console.log(`${status}  ${rel}${r.docs.length ? `  (${r.docs.length} doc(s))` : ''}`);
   for (const f of r.findings) {
-    if (f.type === 'member-deprecated') console.log(`      ${f.control} ${f.member} is deprecated (${String(f.deprecated?.text || '').slice(0, 70)})`);
+    if (f.type === 'view-never-displayed') console.log('      a view is built but never displayed — client->view_display( ) is missing');
+    else if (f.type === 'missing-required-aggregation') console.log(`      ${f.control} has data but no ${f.member} — it renders empty`);
+    else if (f.type === 'collection-bound-to-property') console.log(`      ${f.control} ${f.member} is a scalar property but {${f.value}} is a table/structure`);
+    else if (f.type === 'member-deprecated') console.log(`      ${f.control} ${f.member} is deprecated (${String(f.deprecated?.text || '').slice(0, 70)})`);
     else if (f.type === 'duplicate-aggregation') console.log(`      ${f.control} opens ${f.member} twice — the second tag replaces the first`);
     else if (f.type === 'unconverted-abap-boolean') console.log(`      ${f.member}: the ABAP boolean ${f.value} reaches the view as 'X'/' ' — wrap it in z2ui5_cl_ai_xml=>as_bool( )`);
     else if (f.type === 'unknown-binding-path') console.log(`      ${f.control} ${f.member}="{${f.value}}" — the model has no such path (silently empty)`);

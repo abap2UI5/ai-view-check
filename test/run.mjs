@@ -108,6 +108,10 @@ assert(hasV('duplicate-aggregation', (x) => x.member === 'content'),
   'view rules: the same aggregation opened twice under one control');
 assert(hasV('member-deprecated', (x) => x.member === 'translucent'),
   'view rules: a deprecated property reported (version-aware, like controls)');
+assert(hasV('missing-required-aggregation', (x) => x.member === 'columns'),
+  'view rules: a Table bound to rows but given no columns');
+assert(hasV('collection-bound-to-property', (x) => x.member === 'headerText'),
+  'view rules: a table bound to a scalar property');
 assert(!hasV('invalid-expression-binding'),
   'view rules: a well-formed expression binding is not flagged');
 

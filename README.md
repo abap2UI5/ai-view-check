@@ -27,6 +27,8 @@ Two gates:
    | `undeclared-namespace` | `ns = 'form'` without an `xmlns:form` |
    | `invalid-expression-binding` | unbalanced braces/parens in `{= … }` |
    | `sapui5-only-control` | needs SAPUI5, absent from OpenUI5 (see below) |
+   | `missing-required-aggregation` | a `Table` bound to rows but given no `columns` — renders empty |
+   | `collection-bound-to-property` | a table/structure bound to a scalar property |
    | `missing-accessibility` | icon-only `Button` without `tooltip`, `Image` without `alt` |
 
    Bindings and expressions are never value-checked (their value is a
@@ -44,6 +46,7 @@ Two gates:
    | `obsolete-binder` | `client->_bind_edit( )` — superseded by `client->_bind( )` |
    | `unconverted-abap-boolean` | an ABAP boolean written straight into the view: it arrives as `'X'`/`' '`, and UI5 reads any non-empty string as true — so `visible = abap_false` makes the control **visible**. Wrap it in `z2ui5_cl_ai_xml=>as_bool( )` |
    | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
+   | `view-never-displayed` | a view is built but never handed to the client — an empty page, no error |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
 
 2. **Render gate** — the view is loaded with a real `XMLView.create` in
