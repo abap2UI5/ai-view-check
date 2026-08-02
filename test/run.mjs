@@ -39,6 +39,8 @@ const broken = by('broken.clas.abap');
 assert(broken.renderErrors.length > 0, 'broken: render gate reports errors');
 assert(broken.renderErrors.some((e) => /textt|NoSuchControl/i.test(e)),
   `broken: error names the defect (${(broken.renderErrors[0] || '').slice(0, 80)})`);
+assert(broken.findings.some((x) => x.type === 'unknown-control' && x.control === 'sap.m.NoSuchControl'),
+  'broken: property gate flags the typo control without a browser');
 
 const xml = by('sample.view.xml');
 assert(xml.kind === 'xml', 'xml: raw view detected');
