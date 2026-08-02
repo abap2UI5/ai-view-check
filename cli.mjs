@@ -18,6 +18,11 @@
  *                      system runs (default 1.71, alias --min-ui5). Controls and
  *                      members introduced later are reported, as are
  *                      deprecations already in effect at that version.
+ *   --distribution <d>  sapui5 (default) or openui5 - which distribution the
+ *                      target system serves. On openui5, controls from
+ *                      SAPUI5-only libraries (sap.ui.comp, sap.suite.*, ...)
+ *                      are reported: they are simply not there. --openui5 is
+ *                      a shorthand.
  *   --allow <name>     allow a control or control.member despite the floor
  *                      (repeatable, e.g. --allow sap.m.Avatar.displaySize)
  *   --no-render        skip the render gate (no browser/@openui5 needed)
@@ -30,11 +35,13 @@ import { checkFiles, collectFiles } from './lib/index.mjs';
 import { snapshotVersion } from './lib/properties.mjs';
 
 const args = process.argv.slice(2);
-const opt = { minUi5: '1.71', allow: [], render: true, properties: true, advisory: false, verbose: false, json: false };
+const opt = { minUi5: '1.71', distribution: 'sapui5', allow: [], render: true, properties: true, advisory: false, verbose: false, json: false };
 const paths = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === '--min-ui5' || a === '--ui5') opt.minUi5 = args[++i];
+  else if (a === '--distribution') opt.distribution = String(args[++i]).toLowerCase();
+  else if (a === '--openui5') opt.distribution = 'openui5';
   else if (a === '--allow') opt.allow.push(args[++i]);
   else if (a === '--no-render') opt.render = false;
   else if (a === '--no-properties') opt.properties = false;
@@ -42,7 +49,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--verbose') opt.verbose = true;
   else if (a === '--json') opt.json = true;
   else if (a === '--help' || a === '-h') {
-    console.log('usage: abap2ui5-linter [paths...] [--ui5 1.71] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
+    console.log('usage: abap2ui5-linter [paths...] [--ui5 1.71] [--distribution sapui5|openui5] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
     process.exit(0);
   } else paths.push(a);
 }
@@ -75,7 +82,8 @@ for (const r of results) {
   const status = problems ? 'FAIL' : 'pass';
   console.log(`${status}  ${rel}${r.docs.length ? `  (${r.docs.length} doc(s))` : ''}`);
   for (const f of r.findings) {
-    if (f.type === 'unknown-control') console.log(`      control ${f.control} does not exist in UI5 — typo?`);
+    if (f.type === 'sapui5-only-control') console.log(`      control ${f.control} needs SAPUI5 — ${f.library} is not part of OpenUI5`);
+    else if (f.type === 'unknown-control') console.log(`      control ${f.control} does not exist in UI5 — typo?`);
     else if (f.type === 'control-too-new') console.log(`      control ${f.control} is @since ${f.since} — newer than the ${f.minUi5} floor`);
     else if (f.type === 'control-deprecated') console.log(`      control ${f.control} is deprecated (${String(f.deprecated).slice(0, 80)})`);
     else if (f.type === 'unknown-property') console.log(`      ${f.control} has no property/event/association ${f.member} — typo?`);
@@ -117,7 +125,7 @@ if (opt.json) {
   const snap = snapshotVersion();
   console.log(
     `\nabap2ui5-linter: ${results.length} file(s), ${failing} failing, ${skipped} skipped ` +
-    `(target UI5 ${opt.minUi5}${snap ? `, metadata from ${snap}` : ''}).`
+    `(target ${opt.distribution === 'openui5' ? 'OpenUI5' : 'SAPUI5'} ${opt.minUi5}${snap ? `, metadata from ${snap}` : ''}).`
   );
 }
 if (!opt.advisory && failing > 0) process.exit(1);

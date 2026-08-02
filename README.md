@@ -57,6 +57,17 @@ node cli.mjs src --json                   # machine-readable output (for tools)
 
 Exit code 1 on any finding (unless `--advisory`) — CI-ready.
 
+### SAPUI5 or OpenUI5
+
+`--distribution sapui5|openui5` (`--openui5` as a shorthand, setting
+`abap2ui5.viewCheck.distribution` in the VS Code extension) says which
+distribution the target system serves. SAPUI5 ships libraries OpenUI5 does
+not — `sap.ui.comp` (Smart controls), `sap.suite.*`, `sap.ushell`, `sap.fe`,
+`sap.viz`, … — so a SmartTable is perfectly fine on SAPUI5 and a guaranteed
+runtime error on OpenUI5. With `openui5` those controls are reported as
+`sapui5-only-control`; the default `sapui5` accepts them silently (they are
+outside the snapshot either way, and are never mistaken for a typo).
+
 ### Which UI5 version is checked against
 
 `--ui5 <version>` (alias `--min-ui5`, setting `abap2ui5.viewCheck.minUi5` in

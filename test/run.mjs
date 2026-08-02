@@ -69,6 +69,18 @@ const depNow = await checkFiles([f('deprecated-late.clas.abap')], { render: fals
 assert(depNow[0].findings.some((x) => x.type === 'control-deprecated'),
   'target version: the same control IS reported when the target reaches its deprecation');
 
+// SAPUI5 vs OpenUI5: the same view is fine on one distribution and broken
+// on the other, because sap.ui.comp simply does not ship with OpenUI5
+const smartSap = await checkFiles([f('smart.clas.abap')], { render: false });
+assert(!smartSap[0].findings.some((x) => x.type === 'sapui5-only-control'),
+  'distribution: a SAPUI5-only control is accepted on SAPUI5 (the default)');
+const smartOpen = await checkFiles([f('smart.clas.abap')], { render: false, distribution: 'openui5' });
+assert(smartOpen[0].findings.some(
+  (x) => x.type === 'sapui5-only-control' && x.library === 'sap.ui.comp'),
+  'distribution: the same control is reported on OpenUI5');
+assert(!smartOpen[0].findings.some((x) => x.type === 'unknown-control'),
+  'distribution: a SAPUI5-only control is never mistaken for a typo');
+
 const xml = by('sample.view.xml');
 assert(xml.kind === 'xml', 'xml: raw view detected');
 assert(xml.findings.length === 0, 'xml: no property findings');
