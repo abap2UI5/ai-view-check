@@ -1,0 +1,109 @@
+name: Downstream
+
+# The linter was extracted from ai-demokit's CI gates and is consumed back by
+# it, so `npm test` here only ever proves the linter against its own fixtures.
+# This workflow closes that loop: every change is run against the real
+# consumers, with THIS checkout substituted for the version they pin.
+#
+# Why substitution and not a plain `npm ci`: both consumers pin the linter to a
+# commit, which is exactly what makes them stable - and exactly what would make
+# this job test the pinned version instead of the proposed one. So the
+# consumer is installed normally (to get the hoisted @openui5 + playwright
+# tree) and only the linter's own published files are swapped in afterwards.
+#
+# A failure here is not automatically a defect in the change: a new rule that
+# fires on the corpus may well be right. It means the rollout has to be
+# decided - severity, an advisory period, or a corpus fix - instead of landing
+# unseen and breaking a downstream repo on its next update.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: downstream-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ai-demokit:
+    # The corpus: 280 generated ports. Runs the consumer's own gate wrapper
+    # (view-gates.mjs), so the corpus POLICY applies - POST_171 deviations,
+    # declared render skips, advisory rules - and a failure means a real port
+    # regressed, not that a deviation went unread.
+    name: ai-demokit corpus (280 ports)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the linter (this change)
+        uses: actions/checkout@v4
+        with:
+          path: linter
+
+      - name: Check out ai-demokit
+        uses: actions/checkout@v4
+        with:
+          repository: abap2UI5/ai-demokit
+          path: ai-demokit
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install ai-demokit (with its pinned linter)
+        working-directory: ai-demokit
+        run: npm ci
+
+      - name: Substitute this checkout for the pinned linter
+        run: ./linter/.github/scripts/substitute-linter.sh linter ai-demokit
+
+      - run: npx playwright install chromium --with-deps
+        working-directory: ai-demokit
+
+      - name: View gates over every port
+        working-directory: ai-demokit
+        run: node scripts/view-gates.mjs --strict
+
+  vscode-extension:
+    # The other consumer imports the library through its subpath exports
+    # (./reconstruct, ./properties, ./abap-rules, ./findings) against
+    # hand-written typings in src/linter.d.ts. Type-checking it against this
+    # checkout is what catches a renamed export or a changed finding shape -
+    # the corpus job never would, because view-gates uses a different subset.
+    name: vscode-extension typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the linter (this change)
+        uses: actions/checkout@v4
+        with:
+          path: linter
+
+      - name: Check out the extension
+        uses: actions/checkout@v4
+        with:
+          repository: abap2UI5/vscode-extension
+          path: vscode-extension
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install the extension (with its pinned linter)
+        working-directory: vscode-extension
+        run: npm ci
+
+      - name: Substitute this checkout for the pinned linter
+        run: ./linter/.github/scripts/substitute-linter.sh linter vscode-extension
+
+      - name: Type-check against this linter
+        working-directory: vscode-extension
+        run: npm run lint
+
+      - name: Bundle
+        working-directory: vscode-extension
+        run: npm run compile

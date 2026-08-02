@@ -22,6 +22,7 @@
     "cli.mjs",
     "lib/",
     "data/",
+    "scripts/generate-metadata.mjs",
     "action.yml",
     "README.md"
   ],

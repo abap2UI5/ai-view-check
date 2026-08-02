@@ -25,6 +25,15 @@ node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
 the playwright install is mandatory, not optional. CI
 (`.github/workflows/ci.yml`) runs exactly these steps on Node 22.
 
+Changing a **severity, a finding type or the reconstructor** additionally
+needs the consumers checked — `.github/workflows/downstream.yml` does that on
+every PR, and the same thing runs locally against sibling checkouts:
+
+```bash
+.github/scripts/substitute-linter.sh . ../ai-demokit
+(cd ../ai-demokit && node scripts/view-gates.mjs --strict --no-render)
+```
+
 ## Scope — what the linter can and cannot see
 
 - Input is **`z2ui5_cl_ai_xml` builder classes** (`collectFiles` picks ABAP
@@ -174,6 +183,29 @@ regenerate merges silently, so regenerate + commit in the same change,
 always. The snapshot's version bounds what the gate can know (reasoning in
 the README).
 
+**The generator is published with the package** (`files[]`) and takes
+`--out <file>`, because it is the ecosystem's ONLY UI5 metadata parser.
+ai-demokit used to carry a second one; the two drifted, and the other one was
+wrong — it attributed a file-level `@deprecated` JSDoc block sitting on a local
+variable to the CONTROL, marking `sap.f.DynamicPageTitle` and
+`sap.f.semantic.SemanticPage` deprecated when neither class doc says so. Its
+`generate_result` workflow now runs this generator instead:
+
+```bash
+OPENUI5_DIR=./openui5 node node_modules/@abap2ui5/linter/scripts/generate-metadata.mjs \
+  --out ui5/properties.json
+```
+
+Note what that does **not** mean: ai-demokit does not reuse `data/properties.json`
+itself. It builds its sample universe from an OpenUI5 *checkout* that can be
+newer than the `@openui5` packages pinned here (1.152 vs 1.150 at the time of
+writing, and npm has no 1.152), and a snapshot older than the universe loses
+the `@since` of controls introduced in between — `scopeOf` then reads them as
+in scope (`sap.f.HeroBanner` @1.152 is the live example). So: **one generator,
+two invocations**, each at the version its own consumer needs. Keep the
+generator's output shape additive for the same reason the `--json` shape is
+frozen — ai-demokit's coverage docs read `controls[…].since` / `.deprecated`.
+
 ## Release model — merging to main IS a release
 
 - There is **no npm publish**; consumers install from git
@@ -215,13 +247,44 @@ ports, POST_171 deviations, declared skips, advisories). Rules of thumb:
 - **All generic view-checking logic lives here**; ai-demokit-specific gate
   policy (sidecar deviations, corpus conventions) stays in `view-gates.mjs`.
 - A behaviour change here changes ai-demokit's CI verdicts on the next
-  dependency bump — check the corpus impact (`npm run view-gates` there)
-  for changes to severities, finding types or the reconstructor.
-- ai-demokit's own `ui5/properties.json` (older shape) now feeds only its
-  coverage docs, not the gates — never copy one snapshot over the other.
-- When ai-demokit's dependency points at a feature branch of this repo
-  (`github:abap2UI5/linter#<branch>`), it must go back to plain
-  `github:abap2UI5/linter` once that branch is merged.
+  dependency bump. **`.github/workflows/downstream.yml` runs that check for
+  you** on every push and PR — see below; you no longer have to remember to
+  run the corpus by hand.
+- Both consumers pin this repo by **commit SHA**
+  (`github:abap2UI5/linter#<sha>`), so a merge here never moves them on its
+  own; bumping the pin is a deliberate change in the consumer, and the
+  downstream workflow is what says whether that bump is safe. A pin pointing
+  at a **feature branch** of this repo is only ever temporary — it must become
+  a SHA on main before that consumer's change is merged.
+
+## The downstream contract — `.github/workflows/downstream.yml`
+
+`npm test` only ever proves this linter against its own fixtures. The
+downstream workflow proves it against the repos that actually consume it,
+with **this checkout substituted for the SHA they pin**
+(`.github/scripts/substitute-linter.sh` copies the published `files[]` over
+`node_modules/@abap2ui5/linter`; the linter's own runtime deps stay hoisted in
+the consumer, so no second install is needed):
+
+| Job | What it catches |
+| --- | --- |
+| `ai-demokit corpus (280 ports)` | a rule that starts firing on real ports — run through `view-gates.mjs`, so corpus policy (POST_171 deviations, declared skips, advisories) applies and only a genuine regression fails |
+| `vscode-extension typecheck` | a renamed or reshaped export — the extension imports the subpath exports against hand-written typings in its `src/linter.d.ts`, which nothing here would otherwise exercise |
+
+A red downstream job is **not automatically a defect in the change**: a new
+rule that fires on the corpus may well be right. It means the rollout has to
+be decided — severity, an advisory period, or a corpus fix — rather than
+landing unseen. Two traps worth knowing before reading a result:
+
+- **Severity is not the whole story.** `view-gates.mjs` neutralises some rules
+  by *type* (`ADVISORY_TYPES`), so raising one of those from `hint` to `error`
+  changes nothing downstream. Conversely a **renamed rule id** is a silent
+  breaking change: the consumer matches `VERSION_TYPES` and its sidecar
+  deviations by type name, so a rename un-excuses every finding that name
+  covered (renaming `member-too-new` fails 68 ports).
+- The corpus exercises only a fraction of the rule set — as of this writing
+  just six finding types fire across all 280 ports. A green corpus job means
+  *no regression*, not *the new rule is covered*.
 
 ## Related repositories
 
@@ -229,5 +292,5 @@ ports, POST_171 deviations, declared skips, advisories). Rules of thumb:
 | --- | --- |
 | [ai-demokit](https://github.com/abap2UI5/ai-demokit) | Origin of the gate logic; now consumes this package via `scripts/view-gates.mjs` (git npm dependency) |
 | [ai-mcp](https://github.com/abap2UI5/ai-mcp) | `validate_view` imports `lib/index.mjs` + `lib/render.mjs` **by path** — a file-layout refactor here breaks it even if `exports` stays intact |
-| [vscode-extension](https://github.com/abap2UI5-addons/vscode-extension) | Consumes the SHA-pinned package (property gate) and the runtime `render-gate-bundle` download |
+| [vscode-extension](https://github.com/abap2UI5/vscode-extension) | Consumes the SHA-pinned package (property gate) and the runtime `render-gate-bundle` download |
 | [abap2UI5](https://github.com/abap2UI5/abap2UI5) | Defines `z2ui5_cl_ai_xml`, the builder whose chains `lib/reconstruct.mjs` re-executes |
