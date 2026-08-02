@@ -20,6 +20,8 @@ CLASS zcl_fixture_rules IMPLEMENTATION.
             )->a( n = `value` v = client->_bind( lv_local )
           )->leaf( `Text`
             )->a( n = `text` v = `{/TYPOED_PATH}`
+          )->leaf( `Panel`
+            )->a( n = `expanded` v = abap_true
           )->leaf( `Button`
             )->a( n = `text`  v = `Go`
             )->a( n = `press` v = client->_event( `NO_HANDLER` ) ).

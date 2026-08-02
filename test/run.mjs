@@ -90,6 +90,8 @@ assert(hasR('binding-to-local', (x) => x.member === 'lv_local'),
   'abap rules: a local variable bound - lost after the roundtrip');
 assert(hasR('event-without-handler', (x) => x.value === 'NO_HANDLER'),
   'abap rules: an event nothing handles');
+assert(hasR('unconverted-abap-boolean', (x) => x.member === 'expanded' && x.value === 'abap_true'),
+  'abap rules: an ABAP boolean written into the view without as_bool( )');
 assert(hasR('unknown-binding-path', (x) => x.value === '/TYPOED_PATH'),
   'abap rules: a hand-written binding path the model does not have');
 

@@ -41,6 +41,7 @@ Two gates:
    | `unknown-binding-path` | a hand-written `{/TYPO}` the derived model has no path for — the field just stays empty |
    | `binding-for-event` / `event-for-property` | `_bind( )` on an event (dead control) or `_event( )` on a property |
    | `obsolete-binder` | `client->_bind_edit( )` — superseded by `client->_bind( )` |
+   | `unconverted-abap-boolean` | an ABAP boolean written straight into the view: it arrives as `'X'`/`' '`, and UI5 reads any non-empty string as true — so `visible = abap_false` makes the control **visible**. Wrap it in `z2ui5_cl_ai_xml=>as_bool( )` |
    | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
 
