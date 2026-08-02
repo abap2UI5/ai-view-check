@@ -22,11 +22,28 @@ Two gates:
    | `control-too-new` / `member-too-new` | introduced after your target UI5 version (default **1.71**) |
    | `control-deprecated` | already deprecated at your target version |
    | `excess-shut` | one `shut( )` more than the builder tree is deep — asserts at runtime |
+   | `duplicate-id` | the same `id` twice — duplicate-ID error at runtime |
+   | `undeclared-namespace` | `ns = 'form'` without an `xmlns:form` |
+   | `invalid-expression-binding` | unbalanced braces/parens in `{= … }` |
+   | `sapui5-only-control` | needs SAPUI5, absent from OpenUI5 (see below) |
+   | `missing-accessibility` | icon-only `Button` without `tooltip`, `Image` without `alt` |
 
    Bindings and expressions are never value-checked (their value is a
    runtime matter), custom namespaces stay out of scope, and a control
    whose inheritance chain leaves the snapshot is never reported as
    missing a member — no guessing.
+   **abap2UI5-specific rules** — the defects that stay *silent* at runtime,
+   which no UI5 tooling can see because they live in the relationship
+   between the ABAP class and the view it builds:
+
+   | Finding | Why it matters |
+   | --- | --- |
+   | `unknown-binding-path` | a hand-written `{/TYPO}` the derived model has no path for — the field just stays empty |
+   | `binding-for-event` / `event-for-property` | `_bind( )` on an event (dead control) or `_event( )` on a property |
+   | `obsolete-binder` | `client->_bind_edit( )` — superseded by `client->_bind( )` |
+   | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
+   | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
+
 2. **Render gate** — the view is loaded with a real `XMLView.create` in
    headless Chromium against the OpenUI5 runtime served locally from the
    `@openui5/*` npm packages, with UI5 *future mode* active — so a typo'd

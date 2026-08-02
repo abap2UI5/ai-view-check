@@ -17,6 +17,10 @@ CLASS zcl_fixture_good IMPLEMENTATION.
 
   METHOD z2ui5_if_app~main.
 
+    IF client->check_on_event( `GO` ).
+      RETURN.
+    ENDIF.
+
     me->client = client.
     IF client->check_on_init( ).
       name = `world`.

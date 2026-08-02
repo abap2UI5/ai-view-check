@@ -82,7 +82,17 @@ for (const r of results) {
   const status = problems ? 'FAIL' : 'pass';
   console.log(`${status}  ${rel}${r.docs.length ? `  (${r.docs.length} doc(s))` : ''}`);
   for (const f of r.findings) {
-    if (f.type === 'sapui5-only-control') console.log(`      control ${f.control} needs SAPUI5 — ${f.library} is not part of OpenUI5`);
+    if (f.type === 'unknown-binding-path') console.log(`      ${f.control} ${f.member}="{${f.value}}" — the model has no such path (silently empty)`);
+    else if (f.type === 'binding-for-event') console.log(`      ${f.control} ${f.member} is an event but carries a binding — use client->_event( )`);
+    else if (f.type === 'event-for-property') console.log(`      ${f.control} ${f.member} is a property but carries an event handler — use client->_bind( )`);
+    else if (f.type === 'obsolete-binder') console.log(`      client->${f.member}( ) is obsolete — use client->_bind( )`);
+    else if (f.type === 'binding-to-local') console.log(`      ${f.member} is a local variable — its value is lost after the roundtrip, bind an instance attribute`);
+    else if (f.type === 'event-without-handler') console.log(`      event ${f.value} is raised but never handled — dead control, unless the roundtrip alone is intended`);
+    else if (f.type === 'duplicate-id') console.log(`      id="${f.value}" is used twice — duplicate ID error at runtime`);
+    else if (f.type === 'undeclared-namespace') console.log(`      namespace prefix '${f.member}' is used but never declared (xmlns:${f.member})`);
+    else if (f.type === 'invalid-expression-binding') console.log(`      ${f.control} ${f.member}: unbalanced braces/parens in the expression binding`);
+    else if (f.type === 'missing-accessibility') console.log(`      ${f.control} has no ${f.member} — not usable with a screen reader`);
+    else if (f.type === 'sapui5-only-control') console.log(`      control ${f.control} needs SAPUI5 — ${f.library} is not part of OpenUI5`);
     else if (f.type === 'unknown-control') console.log(`      control ${f.control} does not exist in UI5 — typo?`);
     else if (f.type === 'control-too-new') console.log(`      control ${f.control} is @since ${f.since} — newer than the ${f.minUi5} floor`);
     else if (f.type === 'control-deprecated') console.log(`      control ${f.control} is deprecated (${String(f.deprecated).slice(0, 80)})`);

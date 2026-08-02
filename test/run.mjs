@@ -81,6 +81,30 @@ assert(smartOpen[0].findings.some(
 assert(!smartOpen[0].findings.some((x) => x.type === 'unknown-control'),
   'distribution: a SAPUI5-only control is never mistaken for a typo');
 
+// abap2UI5-specific defects: silent at runtime, invisible to UI5 tooling
+const rules = (await checkFiles([f('abaprules.clas.abap')], { render: false }))[0];
+const hasR = (t, pred = () => true) => rules.findings.some((x) => x.type === t && pred(x));
+assert(hasR('obsolete-binder', (x) => x.member === '_bind_edit'),
+  'abap rules: _bind_edit reported as obsolete (use _bind)');
+assert(hasR('binding-to-local', (x) => x.member === 'lv_local'),
+  'abap rules: a local variable bound - lost after the roundtrip');
+assert(hasR('event-without-handler', (x) => x.value === 'NO_HANDLER'),
+  'abap rules: an event nothing handles');
+assert(hasR('unknown-binding-path', (x) => x.value === '/TYPOED_PATH'),
+  'abap rules: a hand-written binding path the model does not have');
+
+const vr = (await checkFiles([f('viewrules.clas.abap')], { render: false }))[0];
+const hasV = (t, pred = () => true) => vr.findings.some((x) => x.type === t && pred(x));
+assert(hasV('binding-for-event', (x) => x.member === 'press'),
+  'view rules: a binding on an event (use _event)');
+assert(hasV('duplicate-id', (x) => x.value === 'twice'), 'view rules: duplicate id');
+assert(hasV('undeclared-namespace', (x) => x.member === 'undeclared'),
+  'view rules: namespace prefix used but never declared');
+assert(hasV('missing-accessibility', (x) => x.member === 'tooltip'),
+  'view rules: icon-only button without a tooltip');
+assert(!hasV('invalid-expression-binding'),
+  'view rules: a well-formed expression binding is not flagged');
+
 const xml = by('sample.view.xml');
 assert(xml.kind === 'xml', 'xml: raw view detected');
 assert(xml.findings.length === 0, 'xml: no property findings');
