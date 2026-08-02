@@ -218,6 +218,28 @@ assert(!checkAbapSource(opaque, { render: false }).findings
   .some((x) => x.type === 'unknown-binding-path'),
   'rows: nothing is claimed about a row type the class does not declare');
 
+// an aggregation directly inside another aggregation: invalid XML, and the
+// signature of a missing shut( ) - the port that put <footer> inside <columns>
+// only ever surfaced as "failed to load sap/ui/table/footer.js" in the browser
+const view = (inner) => `
+  DATA(view) = z2ui5_cl_ai_xml=>factory( ).
+  view->open( n = \`View\` ns = \`mvc\`
+      )->a( n = \`xmlns\`     v = \`sap.m\`
+      )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+      )->a( n = \`xmlns:my\`  v = \`my.custom.lib\`
+      ${inner}.
+  client->view_display( view->stringify( ) ).`;
+const misplaced = (src) => checkAbapSource(src, { render: false })
+  .findings.filter((x) => x.type === 'aggregation-in-aggregation');
+
+assert(misplaced(view('  )->open( `Table` )->open( `columns` )->leaf( `Column` )->open( `footer` )'))
+  .some((x) => x.member === 'footer' && x.parentAggregation === 'columns'),
+  'missing shut: an aggregation inside an aggregation is reported');
+assert(!misplaced(view('  )->open( `Table` )->open( `columns` )->open( `Column` )->open( `header` )')).length,
+  'missing shut: a well-formed aggregation/control/aggregation nesting is not');
+assert(!misplaced(view('  )->open( `Table` )->open( `columns` )->open( n = `Thing` ns = `my` )->open( `content` )')).length,
+  'missing shut: a control from an unknown library still counts as a control in between');
+
 // a tag in a foreign namespace (raw XHTML, a custom-control library) is not
 // a UI5 aggregation of its parent - it is outside what the metadata can judge
 const foreign = checkAbapSource(`

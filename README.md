@@ -22,6 +22,7 @@ Two gates:
    | `control-too-new` / `member-too-new` | introduced after your target UI5 version (default **1.71**) |
    | `control-deprecated` / `member-deprecated` | control or property already deprecated at your target version |
    | `duplicate-aggregation` | the same aggregation opened twice under one control — the second tag replaces the first |
+   | `aggregation-in-aggregation` | an aggregation directly inside another one — invalid XML, and the signature of a missing `shut( )`: UI5 then goes looking for a control class by that name |
    | `excess-shut` | one `shut( )` more than the builder tree is deep — asserts at runtime |
    | `duplicate-property` | the same attribute written twice on one control — `z2ui5_cl_ai_xml` asserts on it |
    | `attribute-without-element` | `a( )` on the bare factory root — nothing to attach it to, asserts too |
