@@ -12,7 +12,6 @@
     "./properties": "./lib/properties.mjs",
     "./render": "./lib/render.mjs",
     "./abap-rules": "./lib/abap-rules.mjs",
-    "./xml-view": "./lib/xml-view.mjs",
     "./findings": "./lib/findings.mjs"
   },
   "files": [
@@ -25,8 +24,7 @@
   "scripts": {
     "check": "node cli.mjs",
     "test": "node test/run.mjs",
-    "generate-metadata": "node scripts/generate-metadata.mjs",
-    "generate-view-builder": "node scripts/generate-view-builder.mjs"
+    "generate-metadata": "node scripts/generate-metadata.mjs"
   },
   "repository": {
     "type": "git",

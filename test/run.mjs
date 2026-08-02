@@ -10,7 +10,6 @@
  *   dumps.clas.abap     builder calls z2ui5_cl_ai_xml ASSERTs on
  *   rowpaths.clas.abap  relative binding paths inside a bound aggregation
  *   nested.clas.abap    nested structures and nested aggregation bindings
- *   typed.clas.abap     the typed builder z2ui5_cl_xml_view
  *   sample.view.xml     raw XML path: no findings, renders clean
  */
 import fs from 'fs';
@@ -219,29 +218,20 @@ assert(!checkAbapSource(opaque, { render: false }).findings
   .some((x) => x.type === 'unknown-binding-path'),
   'rows: nothing is claimed about a row type the class does not declare');
 
-// the TYPED builder (z2ui5_cl_xml_view): the control is the ABAP method, its
-// attributes are that method's parameters - both read from the framework
-const typed = (await checkFiles([f('typed.clas.abap')], { render: false }))[0];
-assert(typed.builder === 'typed', 'typed: the builder is recognised from the source');
-assert(typed.docs.length === 1
-  && /<Shell><Page title="Typed">/.test(typed.docs[0])
-  && /<Table items="\{\/T_TAB\}"><columns><Column><Text text="Carrier"\/><\/Column><\/columns>/.test(typed.docs[0]),
-  `typed: the chain reconstructs, get_parent( ) included (${typed.docs[0]?.slice(0, 90)})`);
-assert(/<Input value="\{\/NAME\}"\/>/.test(typed.docs[0]),
-  'typed: client->_bind_edit( name ) resolves to its client path');
-assert(typed.findings.some((x) => x.type === 'invalid-property-value' && x.value === 'Emphasised'),
-  'typed: a bad enum value is caught through the reconstruction');
-assert(typed.findings.some((x) => x.type === 'unknown-binding-path' && x.value === 'CARID'),
-  'typed: a row field the type does not have is caught in the cells template');
-
-// a raw XHTML tag (html:iframe) is not a UI5 aggregation of its parent - a
-// foreign namespace is outside what the metadata can judge
+// a tag in a foreign namespace (raw XHTML, a custom-control library) is not
+// a UI5 aggregation of its parent - it is outside what the metadata can judge
 const foreign = checkAbapSource(`
-  DATA(popup) = z2ui5_cl_xml_view=>factory_popup( )->dialog( \`x\`
-      )->content( )->vbox( )->_generic( ns = \`html\` name = \`iframe\` ).
-  client->popup_display( popup->stringify( ) ).`, { render: false });
+  DATA(view) = z2ui5_cl_ai_xml=>factory( ).
+  view->open( n = \`View\` ns = \`mvc\`
+      )->a( n = \`xmlns\`      v = \`sap.m\`
+      )->a( n = \`xmlns:mvc\`  v = \`sap.ui.core.mvc\`
+      )->a( n = \`xmlns:html\` v = \`http://www.w3.org/1999/xhtml\`
+      )->open( \`Panel\`
+          )->leaf( n = \`iframe\` ns = \`html\`
+              )->a( n = \`src\` v = \`https://example.org\` ).
+  client->view_display( view->stringify( ) ).`, { render: false });
 assert(!foreign.findings.some((x) => x.type === 'unknown-aggregation'),
-  'typed: a tag in a foreign namespace is left alone, not read as an aggregation');
+  'foreign namespace: html:iframe is left alone, not read as an aggregation of Panel');
 
 // positions in raw XML are just as exact as in a builder class
 const xmlPos = (await checkFiles([f('badvalue.view.xml')], { render: false }))[0];
