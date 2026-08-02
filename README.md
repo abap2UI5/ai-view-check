@@ -56,7 +56,9 @@ Two gates:
 
 The name in the left column is the **rule id**: it is printed at the end of
 every reported line, it is the key in the `rules` block of the config file,
-and it is what a source directive names. Every finding also carries a
+and it is what a source directive names. Every rule is documented one page
+away — **[abap2ui5.github.io/linter](https://abap2ui5.github.io/linter/)**,
+searchable, one anchor per id. Every finding also carries a
 **severity**, a ready-made **message** and — where the gate could place it —
 the **line and column** in the file it came from:
 
@@ -109,6 +111,7 @@ node cli.mjs src --allow sap.m.GenericTile.systemInfo   # accepted deviation
 node cli.mjs src --no-render              # property gate only (no browser)
 node cli.mjs src --fail-on error          # only real breakage fails CI
 node cli.mjs src --advisory               # report, never fail the build
+node cli.mjs src --fix                    # correct what is mechanical, report the rest
 node cli.mjs src --quiet                  # errors only (the counts stay complete)
 node cli.mjs src --format json            # machine-readable output (for tools)
 node cli.mjs src --format markdown        # for a PR comment or a job summary
@@ -129,6 +132,24 @@ spelling that matches the config file name.
 finding is additionally emitted as a workflow command, so it shows up on the
 diff of the pull request rather than in the log only — `--no-annotate` turns
 that off, `--annotate` forces it on elsewhere.
+
+## `--fix`
+
+Three rules carry an exact correction and are rewritten in place; the run
+then reports what is left, so `--fix` can go in front of any other flag.
+
+| Rule | What `--fix` writes |
+| --- | --- |
+| `obsolete-binder` | `client->_bind_edit( … )` → `client->_bind( … )`, arguments untouched |
+| `unconverted-abap-boolean` | a bare token wrapped in `z2ui5_cl_ai_xml=>as_bool( … )` — an expression is left alone |
+| `event-arg-unresolved` | the missing `$` inserted (`` `{COL}` `` → `` `${COL}` ``), a `\|…\|` template left alone |
+
+Nothing else is touched: a correction that has to guess (which of two
+duplicate attributes survives, what event a `_bind` on an event slot meant to
+raise) is worse than the finding it replaces. A rule waived by a directive or
+by the config is never rewritten, and overlapping corrections are deferred to
+the next run rather than merged. `ABAP2UI5LINT_FIX_DRY_RUN=true` reports what
+it would change without writing a file.
 
 ## Waiving a rule
 
@@ -197,7 +218,7 @@ Precedence per option: explicit CLI flag > config file > built-in default
 
 ```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/abap2UI5/abap2UI5-linter/main/data/abap2ui5lint.schema.json",
+  "$schema": "https://raw.githubusercontent.com/abap2UI5/linter/main/data/abap2ui5lint.schema.json",
   "paths": ["src"],          // used when the CLI got no positional paths
   "ui5": "1.71",             // UI5 floor for the property gate
   "distribution": "sapui5",  // or "openui5"
@@ -230,7 +251,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: abap2UI5/abap2UI5-linter@main
+      - uses: abap2UI5/linter@main
         with:
           paths: src
           min-ui5: '1.71'
@@ -311,9 +332,13 @@ npm run generate-metadata                              # from node_modules
 OPENUI5_DIR=/path/to/openui5 npm run generate-metadata # from a checkout
 ```
 
-`data/abap2ui5lint.schema.json` is generated too — from the rule registry in
-`lib/findings.mjs`, by `npm run generate-schema`. A new rule has to appear
-there, and `npm test` fails while the committed schema is stale.
+Two more artefacts are generated from the rule registry in `lib/findings.mjs`
+and the prose in `lib/rule-docs.mjs` — `npm test` fails while either is stale:
+
+```sh
+npm run generate-schema      # data/abap2ui5lint.schema.json — editor completion
+npm run generate-rules-page  # docs/index.html — the published rule reference
+```
 
 ## Credits
 

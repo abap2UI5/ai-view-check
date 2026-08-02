@@ -30,6 +30,10 @@
  *                      reported - this only decides the exit code.
  *   --format <f>       stylish (default), json or markdown. --json is a
  *                      shorthand for --format json.
+ *   --fix              rewrite what can be corrected mechanically (an obsolete
+ *                      binder, an unwrapped ABAP boolean, a t_arg missing its
+ *                      $), then report what is left. ABAP2UI5LINT_FIX_DRY_RUN=true
+ *                      reports what it would change without touching a file.
  *   --quiet            report errors only - the counts still show everything
  *   --annotate         emit GitHub workflow commands so findings show up on
  *                      the pull request diff (default inside GitHub Actions;
@@ -57,12 +61,13 @@ import { checkFiles, collectFiles } from './lib/index.mjs';
 import { findConfig, loadConfig, applyConfig } from './lib/config.mjs';
 import { snapshotVersion } from './lib/properties.mjs';
 import { SEVERITIES, severityRank, severityOf } from './lib/findings.mjs';
+import { applyFixes } from './lib/fix.mjs';
 import { FORMATS, summarize, contextLine, formatStylish, formatJson, formatMarkdown, githubAnnotations } from './lib/report.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const USAGE = 'usage: abap2ui5-linter [paths...] [--ui5 1.71] [--distribution sapui5|openui5] '
   + '[--allow control[.member]] [--fail-on error|warning|hint|never] [--format stylish|json|markdown] '
-  + '[--quiet] [--annotate|--no-annotate] [--no-render] [--no-properties] [--advisory] [--verbose] '
+  + '[--fix] [--quiet] [--annotate|--no-annotate] [--no-render] [--no-properties] [--advisory] [--verbose] '
   + '[--config abap2ui5lint.jsonc] [--no-config] [--version]';
 
 const die = (message) => {
@@ -74,7 +79,7 @@ const args = process.argv.slice(2);
 const opt = {
   minUi5: '1.71', distribution: 'sapui5', allow: [], render: true, properties: true,
   failOn: 'warning', rules: {}, verbose: false,
-  format: 'stylish', quiet: false,
+  format: 'stylish', quiet: false, fix: false,
   // inside a workflow the annotations are the point of running the linter at
   // all: they put a finding on the diff instead of into a collapsed log
   annotate: process.env.GITHUB_ACTIONS === 'true',
@@ -95,6 +100,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--config') configFlag = args[++i];
   else if (a === '--no-config') noConfig = true;
   else if (a === '--quiet') opt.quiet = true;
+  else if (a === '--fix') opt.fix = true;
   else if (a === '--annotate') opt.annotate = true;
   else if (a === '--no-annotate') opt.annotate = false;
   else if (a === '--json') opt.format = 'json';
@@ -149,6 +155,29 @@ if (!files.length) {
     console.log(`abap2ui5-linter: no checkable files under ${paths.join(', ')} (ABAP classes using z2ui5_cl_ai_xml, *.view.xml, *.fragment.xml)`);
   }
   process.exit(0);
+}
+
+/* --fix is a pass of its own: the property gate alone (a fix never depends on
+ * the render result), rewrite, then the normal run reports what is left -
+ * which is what makes `--fix` safe to put in front of any other flag. */
+if (opt.fix) {
+  const dryRun = process.env.ABAP2UI5LINT_FIX_DRY_RUN === 'true';
+  let files_ = 0;
+  let fixed = 0;
+  let deferred = 0;
+  for (const r of await checkFiles(files, { ...opt, render: false })) {
+    const source = fs.readFileSync(r.file, 'utf8');
+    const result = applyFixes(source, r.findings);
+    deferred += result.deferred;
+    if (!result.applied) continue;
+    files_++;
+    fixed += result.applied;
+    if (!dryRun) fs.writeFileSync(r.file, result.output);
+  }
+  if (fixed && opt.format === 'stylish') {
+    console.log(`${dryRun ? 'would fix' : 'fixed'} ${fixed} problem(s) in ${files_} file(s)` +
+      `${deferred ? `, ${deferred} deferred to the next run (overlapping)` : ''}\n`);
+  }
 }
 
 const results = await checkFiles(files, opt);

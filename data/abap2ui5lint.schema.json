@@ -1,8 +1,8 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/abap2UI5/abap2UI5-linter/main/data/abap2ui5lint.schema.json",
+  "$id": "https://raw.githubusercontent.com/abap2UI5/linter/main/data/abap2ui5lint.schema.json",
   "title": "abap2ui5lint.jsonc",
-  "description": "Configuration for abap2UI5-linter (https://github.com/abap2UI5/abap2UI5-linter)",
+  "description": "Configuration for abap2UI5-linter (https://github.com/abap2UI5/linter)",
   "type": "object",
   "additionalProperties": false,
   "properties": {

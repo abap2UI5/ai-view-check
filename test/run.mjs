@@ -436,6 +436,54 @@ assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0]
     'directives: a finding the gate could not place is never suppressed');
 }
 
+// ------------------------------------------------------------------- fix ----
+{
+  const os = await import('node:os');
+  const cp = await import('node:child_process');
+  const CLI = path.join(FIX, '..', '..', 'cli.mjs');
+  const { applyFixes } = await import('../lib/fix.mjs');
+  const { checkAbapRules } = await import('../lib/abap-rules.mjs');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui5fix-'));
+  const target = path.join(dir, 'abaprules.clas.abap');
+  const original = fs.readFileSync(f('abaprules.clas.abap'), 'utf8');
+  fs.writeFileSync(target, original);
+
+  // the linter still exits 1 on what is left over, so never trust execFileSync
+  const run = (env = {}) => {
+    try { return cp.execFileSync('node', [CLI, target, '--no-render', '--fix'], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', ...env } }); }
+    catch (e) { return e.stdout ?? ''; }
+  };
+
+  const dry = run({ ABAP2UI5LINT_FIX_DRY_RUN: 'true' });
+  assert(/would fix 3 problem\(s\)/.test(dry) && fs.readFileSync(target, 'utf8') === original,
+    'fix: the dry run reports what it would do and leaves the file alone');
+
+  const out = run();
+  const fixed = fs.readFileSync(target, 'utf8');
+  assert(/fixed 3 problem\(s\) in 1 file\(s\)/.test(out), 'fix: the three mechanical corrections are applied');
+  assert(/client->_bind\( name \)/.test(fixed) && !/_bind_edit/.test(fixed),
+    'fix: obsolete-binder becomes client->_bind( )');
+  assert(/z2ui5_cl_ai_xml=>as_bool\( abap_true \)/.test(fixed),
+    'fix: unconverted-abap-boolean is wrapped, the token kept verbatim');
+  assert(/`\$\{BARE_BRACE\}`/.test(fixed) && /`\$\{RESOLVED\}`/.test(fixed) && /`\{0\} selected`/.test(fixed),
+    'fix: event-arg-unresolved gains its $, the already-correct and quoted forms untouched');
+  assert(!/obsolete-binder|unconverted-abap-boolean|event-arg-unresolved/.test(out),
+    'fix: what was fixed is gone from the report of the same run');
+  assert(/binding-to-local/.test(out), 'fix: a finding without a mechanical correction survives');
+
+  const twice = original.replace(/client->_bind\( lv_local \)/, 'client->_bind_edit( lv_local )');
+  const both = checkAbapRules(twice).find((x) => x.type === 'obsolete-binder');
+  assert(both.fixes.length === 2, 'fix: two call sites of one deduped finding both carry a fix');
+  assert(!/_bind_edit/.test(applyFixes(twice, [both]).output), 'fix: and both are applied in one pass');
+
+  const overlap = applyFixes('abcdef', [{ fixes: [{ start: 1, end: 4, text: 'X' }, { start: 2, end: 5, text: 'Y' }] }]);
+  assert(overlap.output === 'aXef' && overlap.applied === 1 && overlap.deferred === 1,
+    'fix: overlapping spans are deferred to the next run, never merged by guesswork');
+
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 // ---------------------------------------------------------------- report ----
 {
   const cp = await import('node:child_process');
@@ -491,6 +539,33 @@ assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0]
   const { RULES } = await import('../lib/findings.mjs');
   assert(Object.keys(schema.properties.rules.properties).length === RULES.length && RULES.includes('duplicate-id'),
     'schema: every rule id is offered to the editor');
+}
+
+// ----------------------------------------------------------- rules page ----
+{
+  const { RULES } = await import('../lib/findings.mjs');
+  const { RULE_DOCS, CATEGORIES } = await import('../lib/rule-docs.mjs');
+  const { FIXABLE } = await import('../lib/fix.mjs');
+  const { buildPage, PAGE_FILE } = await import('../scripts/generate-rules-page.mjs');
+
+  const documented = Object.keys(RULE_DOCS).sort();
+  assert(documented.join() === [...RULES].join(),
+    `rules page: every rule is documented and every documented rule exists (${
+      RULES.filter((r) => !RULE_DOCS[r]).concat(documented.filter((d) => !RULES.includes(d))).join(', ') || 'in sync'})`);
+
+  const known = new Set(CATEGORIES.map((c) => c.id));
+  assert(Object.values(RULE_DOCS).every((d) => known.has(d.category) && d.summary && d.detail),
+    'rules page: every entry has a known category, a summary and a detail');
+
+  assert(FIXABLE.every((id) => RULES.includes(id) && RULE_DOCS[id].fixNote),
+    'rules page: an autofixable rule says on the page what --fix does to it');
+
+  const page = fs.readFileSync(PAGE_FILE, 'utf8');
+  assert(page === buildPage(), 'rules page: docs/index.html is in sync (npm run generate-rules-page)');
+  assert(RULES.every((id) => page.includes(`<article class="rule" id="${id}"`)),
+    'rules page: every rule has an anchor to link to');
+  assert(!/<script src|<link rel="stylesheet"|https?:\/\/(?!github\.com|abap2ui5)/.test(page),
+    'rules page: self-contained - no external stylesheet, script or font');
 }
 
 console.log(failed ? `\n${failed} assertion(s) failed` : '\nall assertions passed');

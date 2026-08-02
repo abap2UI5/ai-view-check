@@ -13,8 +13,9 @@ and GitHub Action, no SAP system required.
 ```bash
 npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
-npm test                          # test/run.mjs, home-grown asserts, ~113 assertions
+npm test                          # test/run.mjs, home-grown asserts, ~129 assertions
 npm run generate-schema           # after adding a rule - the test gates the drift
+npm run generate-rules-page       # ditto: docs/index.html, the published reference
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
 # settings can be pinned in the checked repo's abap2ui5lint.jsonc (lib/config.mjs;
 # CLI flag > config > default; unknown keys and unknown rule ids fail loudly)
@@ -57,16 +58,28 @@ exact line):
 | `lib/findings.mjs` | no findings — the **severity/wording/position layer** (`severityOf`, `SEVERITIES`, `RULES`, messages) plus the two things a repo can say back to it: `applyRules` (the config's `rules` block) and `applyDirectives` (`abap2ui5lint-disable-*` comments). Every consumer (CLI, VS Code extension, ai-demokit `view-gates`, ai-mcp) reads what a finding *means* from here; a new finding type needs its severity classified here or consumers fall back to a default |
 | `lib/report.mjs` | no findings — the **output layer**: `summarize`, the `stylish`/`json`/`markdown` formatters and the GitHub workflow-command annotations. The CLI only parses flags and picks one |
 
-**A new rule moves four places together** — forgetting one has happened:
+**A new rule moves five places together** — forgetting one has happened:
 
 1. the emit site in `lib/`,
 2. its severity in `SEVERITY_BY_TYPE` (`lib/findings.mjs`) — that is also what
    registers it as a rule id,
-3. a fixture in `test/fixtures/` + assertions in `test/run.mjs`,
-4. a row in the README finding-type table.
+3. an entry in `RULE_DOCS` (`lib/rule-docs.mjs`) — category, summary, detail,
+4. a fixture in `test/fixtures/` + assertions in `test/run.mjs`,
+5. a row in the README finding-type table.
 
-Then `npm run generate-schema` and commit `data/abap2ui5lint.schema.json`
-with it — `npm test` fails while that file is stale.
+Then regenerate and commit both artefacts — `npm test` fails while either is
+stale:
+
+```bash
+npm run generate-schema      # data/abap2ui5lint.schema.json
+npm run generate-rules-page  # docs/index.html
+```
+
+A rule may also carry `fixes: [{ start, end, text }]` (see `lib/fix.mjs`):
+exact spans in the source it was given, applied by `--fix`. Attach them only
+when the correction is mechanical — a fix that has to guess is worse than a
+finding that stays — and describe it in the rule's `fixNote`, which the test
+requires for everything listed in `FIXABLE`.
 
 ## Deliberate kinship with ui5lint and abaplint
 
@@ -77,16 +90,18 @@ theirs on purpose and a change that drifts from it needs a reason:
 | Ours | Modelled on |
 | --- | --- |
 | `path` heading, `line:col severity message rule-id`, `N problems (…)`, `Success! No findings detected.` | ui5lint's stylish formatter |
-| `--format stylish\|json\|markdown`, `--quiet`, `--version`, `--fix`-shaped flag names | ui5lint |
+| `--format stylish\|json\|markdown`, `--quiet`, `--version` | ui5lint |
+| `--fix` plus a `*_FIX_DRY_RUN` env escape | ui5lint's `--fix` / `UI5LINT_FIX_DRY_RUN` |
 | `abap2ui5lint-disable-next-line`/`-disable-line`/`-disable`/`-enable`, reason after `--` | ui5lint directives |
 | `abap2ui5lint.jsonc`, `rules: { id: false \| severity \| { severity, exclude } }`, JSON schema for editor completion | abaplint's config and `BasicRuleConfig` |
+| `docs/index.html` — one searchable page, one anchor per rule id | rules.abaplint.org |
 | bin alias `abap2ui5lint`, exit codes 0/1/2 | both |
 | workflow-command annotations on the PR diff | abaplint's `actions-abaplint` |
 
 Known deliberate divergences: severities are `error/warning/hint` (not
 abaplint's `Error/Warning/Info` — `hint` is already load-bearing across
-consumers), rule ids are kebab-case like ui5lint's rather than abaplint's
-snake_case, and there is no `--fix` yet.
+consumers), and rule ids are kebab-case like ui5lint's rather than abaplint's
+snake_case.
 
 Known test-coverage debt (assert these when touching the area):
 `invalid-aggregation-child`, `sapui5-only-control` and `open-levels`
@@ -146,7 +161,13 @@ the README).
 ## Release model — merging to main IS a release
 
 - There is **no npm publish**; consumers install from git
-  (`github:abap2UI5/abap2UI5-linter`). `package.json` stays at its version.
+  (`github:abap2UI5/linter`). `package.json` stays at its version.
+- **`docs/index.html` is published on merge** to
+  https://abap2ui5.github.io/linter/ by `.github/workflows/pages.yml` — a
+  reworded rule detail is live the moment it lands on main. The workflow only
+  serves the committed file, it never regenerates it: a generator running in
+  CI would paper over a stale commit instead of failing on it. Pages has to be
+  enabled once in the repository settings, source "GitHub Actions".
 - `.github/workflows/bundle.yml` maintains the rolling prerelease tag
   **`render-gate-bundle`** with `view-check-bundle.tgz` (cli + lib + data +
   prod node_modules). **Installed VS Code extensions download this bundle at
@@ -183,8 +204,8 @@ ports, POST_171 deviations, declared skips, advisories). Rules of thumb:
 - ai-demokit's own `ui5/properties.json` (older shape) now feeds only its
   coverage docs, not the gates — never copy one snapshot over the other.
 - When ai-demokit's dependency points at a feature branch of this repo
-  (`github:abap2UI5/abap2UI5-linter#<branch>`), it must go back to plain
-  `github:abap2UI5/abap2UI5-linter` once that branch is merged.
+  (`github:abap2UI5/linter#<branch>`), it must go back to plain
+  `github:abap2UI5/linter` once that branch is merged.
 
 ## Related repositories
 

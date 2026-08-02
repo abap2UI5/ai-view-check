@@ -29,17 +29,18 @@
     "check": "node cli.mjs",
     "test": "node test/run.mjs",
     "generate-metadata": "node scripts/generate-metadata.mjs",
-    "generate-schema": "node scripts/generate-schema.mjs"
+    "generate-schema": "node scripts/generate-schema.mjs",
+    "generate-rules-page": "node scripts/generate-rules-page.mjs"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/abap2UI5/abap2UI5-linter.git"
+    "url": "git+https://github.com/abap2UI5/linter.git"
   },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/abap2UI5/abap2UI5/issues"
   },
-  "homepage": "https://github.com/abap2UI5/abap2UI5-linter#readme",
+  "homepage": "https://github.com/abap2UI5/linter#readme",
   "dependencies": {
     "@openui5/sap.f": "1.150.0",
     "@openui5/sap.m": "1.150.0",

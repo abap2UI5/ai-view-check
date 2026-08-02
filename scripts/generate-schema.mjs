@@ -6,7 +6,7 @@
  * it; ours is generated so the rule list in the schema can never drift from
  * the rule list in lib/findings.mjs. A repo points at it with
  *
- *   { "$schema": "https://raw.githubusercontent.com/abap2UI5/abap2UI5-linter/main/data/abap2ui5lint.schema.json" }
+ *   { "$schema": "https://raw.githubusercontent.com/abap2UI5/linter/main/data/abap2ui5lint.schema.json" }
  *
  *   node scripts/generate-schema.mjs           write the file
  *   node scripts/generate-schema.mjs --check   exit 1 if the committed file
@@ -32,9 +32,9 @@ export function buildSchema() {
   }
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
-    $id: 'https://raw.githubusercontent.com/abap2UI5/abap2UI5-linter/main/data/abap2ui5lint.schema.json',
+    $id: 'https://raw.githubusercontent.com/abap2UI5/linter/main/data/abap2ui5lint.schema.json',
     title: 'abap2ui5lint.jsonc',
-    description: 'Configuration for abap2UI5-linter (https://github.com/abap2UI5/abap2UI5-linter)',
+    description: 'Configuration for abap2UI5-linter (https://github.com/abap2UI5/linter)',
     type: 'object',
     additionalProperties: false,
     properties: {
