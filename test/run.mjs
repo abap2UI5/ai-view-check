@@ -218,6 +218,29 @@ assert(!checkAbapSource(opaque, { render: false }).findings
   .some((x) => x.type === 'unknown-binding-path'),
   'rows: nothing is claimed about a row type the class does not declare');
 
+// event parameters an app reads back ($parameters>/name) are members of the
+// control like any other - and they are resolved PER EVENT, because two
+// events of one control can declare the same name with different histories
+const withEvent = (control, event, param) => checkAbapSource(`
+  DATA(view) = z2ui5_cl_ai_xml=>factory( ).
+  view->open( n = \`View\` ns = \`mvc\`
+      )->a( n = \`xmlns\`     v = \`sap.m\`
+      )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+      )->leaf( \`${control}\`
+          )->a( n = \`${event}\` v = client->_event( val = \`GO\` t_arg = VALUE #( ( \`\${$parameters>/${param}}\` ) ) ) ).
+  client->view_display( view->stringify( ) ).`, { render: false })
+  .findings.filter((x) => x.type === 'event-parameter-too-new');
+
+assert(withEvent('SearchField', 'search', 'searchButtonPressed')
+  .some((x) => x.member === 'searchButtonPressed' && x.since === '1.114'),
+  'event params: one newer than the floor is reported');
+assert(!withEvent('SearchField', 'search', 'query').length,
+  'event params: one without an @since predates version tracking and is not');
+assert(withEvent('Menu', 'beforeClose', 'item').length === 1,
+  'event params: Menu beforeClose/item is @since 1.136');
+assert(!withEvent('Menu', 'itemSelected', 'item').length,
+  'event params: Menu itemSelected/item is NOT - same name, different event, and only the flat member map confuses the two');
+
 // an aggregation directly inside another aggregation: invalid XML, and the
 // signature of a missing shut( ) - the port that put <footer> inside <columns>
 // only ever surfaced as "failed to load sap/ui/table/footer.js" in the browser

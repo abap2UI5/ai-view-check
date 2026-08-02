@@ -20,6 +20,7 @@ Two gates:
    | `too-many-children` | two controls in a 0..1 aggregation |
    | `invalid-aggregation-child` | a control the aggregation's type does not accept |
    | `control-too-new` / `member-too-new` | introduced after your target UI5 version (default **1.71**) |
+   | `event-parameter-too-new` | a `${$parameters>/name}` read back in a `t_arg` that the event only gained later — resolved per event, not per name |
    | `control-deprecated` / `member-deprecated` | control or property already deprecated at your target version |
    | `duplicate-aggregation` | the same aggregation opened twice under one control — the second tag replaces the first |
    | `aggregation-in-aggregation` | an aggregation directly inside another one — invalid XML, and the signature of a missing `shut( )`: UI5 then goes looking for a control class by that name |

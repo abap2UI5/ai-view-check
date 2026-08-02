@@ -150,6 +150,16 @@ function declEntry(decl, doc) {
   const type = decl.match(/\btype\s*:\s*["']([\w.:/]+)["']/)?.[1];
   if (type) entry.type = type;
   if (/\bmultiple\s*:\s*true/.test(decl)) entry.multiple = true;
+  /* An event's own parameters, kept PER EVENT rather than merged into the
+   * flat member map: sap.m.Menu declares an `item` parameter on both
+   * itemSelected (since forever) and beforeClose (@since 1.136), and one
+   * flat entry cannot tell an app reading $parameters>/item which of the two
+   * it is looking at. */
+  const params = section(decl, 'parameters');
+  if (params) {
+    const parsed = declarations(params);
+    if (Object.keys(parsed).length) entry.params = parsed;
+  }
   const since = doc?.match(/@since\s+(?:version\s+)?([\d.]+)/i)?.[1];
   if (since) entry.since = since;
   const dep = doc?.match(/@deprecated(?:\s+As of(?:\s+version)?\s+([\d.]+))?([^\n]*)/i);
