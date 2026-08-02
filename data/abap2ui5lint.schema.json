@@ -83,6 +83,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'binding-type-mismatch' — default severity: warning"
         },
+        "collapsed-brace-in-style": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'collapsed-brace-in-style' — default severity: error"
+        },
         "collection-bound-to-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'collection-bound-to-property' — default severity: error"
@@ -206,6 +210,10 @@
         "unknown-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'unknown-property' — default severity: error"
+        },
+        "unused-public-attribute": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'unused-public-attribute' — default severity: hint"
         },
         "view-never-displayed": {
           "$ref": "#/definitions/rule",

@@ -13,7 +13,7 @@ and GitHub Action, no SAP system required.
 ```bash
 npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
-npm test                          # test/run.mjs, home-grown asserts, ~150 assertions
+npm test                          # test/run.mjs, home-grown asserts, ~156 assertions
 npm run generate-schema           # after adding a rule - the test gates the drift
 npm run generate-rules-page       # ditto: docs/index.html, the published reference
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
@@ -51,7 +51,7 @@ exact line):
 | Emitting file | Finding types |
 | --- | --- |
 | `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `binding-type-mismatch`, `missing-accessibility` |
-| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `event-arg-out-of-range`, `invalid-frontend-action`, `unescaped-brace-in-style`, `view-never-displayed` |
+| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `event-arg-out-of-range`, `invalid-frontend-action`, `unescaped-brace-in-style`, `collapsed-brace-in-style`, `unused-public-attribute`, `view-never-displayed` |
 | `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `display-root-mismatch`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
 | `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc`/`.json` loader (discovery, validation, precedence, the `rules` block). New config keys go through its KNOWN set + a run.mjs assertion |
@@ -120,36 +120,42 @@ currently have no test assertion.
 
 The mission is to encode as much app-building knowledge as possible as
 static checks, so an agent learns a rule from a finding instead of a doc.
-Candidates, distilled from the app guide and the ai-demokit gotchas, in
-rough feasibility order (each new rule follows the five-places rule above
-plus a severity classification in `lib/findings.mjs`):
+**The list distilled from the app guide and the ai-demokit gotchas is now
+worked off**; every entry shipped:
 
-1. **Collapsed-brace expression bindings** — a `\{`-escaped brace inside a
-   `|…|` template around a relative row field collapses and the attribute
-   silently stops being a binding; heuristics exist in ai-demokit's
-   pattern-lint and could generalize. (Its neighbour, an *un*escaped brace in
-   a `<style>` block, is now `unescaped-brace-in-style`.)
-2. **Unbound PUBLIC attribute** (hint) — every PUBLIC attribute is serialized
-   into the draft and shipped to the browser per roundtrip; one that no view
-   ever binds is dead transport weight. Needs the class's PUBLIC DATA set
-   minus every `_bind`/`{FIELD}` reference. **Weakest of the three**: an
-   attribute holding state across roundtrips without ever being bound is
-   legitimate and common, so this needs a way to tell the two apart before it
-   is worth shipping.
+| Roadmap entry | Rule |
+| --- | --- |
+| Popup/view root mismatch | `display-root-mismatch` |
+| Strictly-typed property bound to a character field | `binding-type-mismatch` |
+| `get_event_arg( n )` beyond the declared arity | `event-arg-out-of-range` |
+| Frontend-action wire tokens | `invalid-frontend-action` (+ `lib/frontend-actions.mjs`) |
+| Collapsed-brace expression bindings | `collapsed-brace-in-style`, alongside `unescaped-brace-in-style` |
+| Unbound PUBLIC attribute | `unused-public-attribute` |
 
-Done and no longer on this list: popup/view root mismatch
-(`display-root-mismatch`), a character field on a strictly typed property
-(`binding-type-mismatch`), reading past the declared `t_arg` arity
-(`event-arg-out-of-range`), and the frontend-action wire tokens
-(`invalid-frontend-action`, catalog in `lib/frontend-actions.mjs`).
+The last one shipped **narrower than it was written**: "no view binds it" is
+not the same as dead. A PUBLIC attribute used only in ABAP code is state, not
+ballast — PUBLIC is precisely how a value survives the roundtrip — so only a
+name that appears once in the whole class, its own declaration, is reported.
+Keep that distinction if the rule is ever widened.
+
+New candidates go here as they are found. Two rules of the trade the last
+rounds established, before anything is added:
 
 **Measure a new rule against the ai-demokit corpus before shipping it.**
 `node cli.mjs /path/to/ai-demokit/src --no-render --json` over 282 real
-ports, diffed per finding type against `main`, is what caught two separate
-false-positive shapes in `event-arg-out-of-range` (an event raised by a
-`message_box_display( onclose = )` callback rather than `client->_event( )`,
-and dispatch leaking across an `ENDMETHOD`). A rule that lights up the corpus
-is usually wrong before the corpus is.
+ports, diffed per finding type against `main`, is what caught three separate
+false-positive shapes: an event raised by a `message_box_display( onclose = )`
+callback rather than `client->_event( )`, dispatch leaking across an
+`ENDMETHOD`, and a `<style>` check scoped to the ABAP *statement* — which on
+a builder chain is the entire view. A rule that lights up the corpus is
+usually wrong before the corpus is.
+
+**And check the rule can see anything at all.** Zero findings on the corpus
+proves nothing on its own: `unused-public-attribute` was verified by
+injecting a dead attribute into a real port (caught) and by counting what it
+judges in silence (120 PUBLIC declarations across 37 of 60 sampled ports, all
+correctly referenced). A rule that parses nothing is also a rule that reports
+nothing.
 
 ## `data/properties.json` is generated — never hand-edit
 

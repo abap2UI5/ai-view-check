@@ -516,6 +516,25 @@ ENDCLASS.`;
   assert(checkAbapRules('DATA(c) = `<style>.a \\{x\\}</style>` && `toast {0} done`.')
     .filter((x) => x.type === 'unescaped-brace-in-style').length === 0,
     'unescaped-brace-in-style: a brace outside the <style> span is not CSS (the corpus false positive)');
+
+  const collapsed = wire.findings.filter((x) => x.type === 'collapsed-brace-in-style');
+  assert(collapsed.length === 1 && collapsed[0].count === 2,
+    `collapsed-brace-in-style: the template form is caught where the source looks escaped (got ${collapsed.length})`);
+  assert(checkAbapRules('DATA(c) = |<style>.a \\\\\\{x\\\\\\}</style>|.')
+    .filter((x) => x.type === 'collapsed-brace-in-style').length === 0,
+    'collapsed-brace-in-style: a doubled backslash survives the template and is not reported');
+  assert(checkAbapRules('DATA(c) = `<style>.a \\{x\\}</style>`.')
+    .filter((x) => x.type === 'collapsed-brace-in-style').length === 0,
+    'collapsed-brace-in-style: the backtick form it recommends is not reported');
+
+  const dead = wire.findings.filter((x) => x.type === 'unused-public-attribute');
+  assert(dead.length === 1 && dead[0].member === 'ballast',
+    `unused-public-attribute: only the untouched one (got ${dead.map((x) => x.member).join() || 'none'})`);
+  assert(!dead.some((x) => ['name', 'counter'].includes(x.member)),
+    'unused-public-attribute: a bound attribute and one used only in code are both left alone');
+  assert(checkAbapRules('CLASS x DEFINITION. PROTECTED SECTION. DATA hidden TYPE string. ENDCLASS.')
+    .filter((x) => x.type === 'unused-public-attribute').length === 0,
+    'unused-public-attribute: a non-PUBLIC attribute is not transported and not judged');
 }
 
 // ------------------------------------------------------------------- fix ----

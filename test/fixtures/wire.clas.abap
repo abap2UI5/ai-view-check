@@ -1,7 +1,9 @@
 CLASS zcl_fixture_wire DEFINITION PUBLIC.
   PUBLIC SECTION.
     INTERFACES z2ui5_if_app.
-    DATA name TYPE string.
+    DATA name    TYPE string.
+    DATA counter TYPE i.
+    DATA ballast TYPE string.
 ENDCLASS.
 
 CLASS zcl_fixture_wire IMPLEMENTATION.
@@ -9,8 +11,14 @@ CLASS zcl_fixture_wire IMPLEMENTATION.
 
     " the first line escapes its braces, the second one forgot to - and only
     " the first literal carries the <style> tag
+    counter = counter + 1.   " read and written in code: state, not ballast
+
     DATA(css) = `<style>.ok \{color:red\}` &&
                 `.broken {color:blue}</style>`.
+
+    " the same escape written in a template: \{ collapses before the builder
+    " sees it, so the attribute crashes exactly as an unescaped one would
+    DATA(css2) = |<style>.a \{color:green\}</style>|.
 
     DATA(view) = z2ui5_cl_ai_xml=>factory( ).
     view->open( n = `View` ns = `mvc`
@@ -18,6 +26,10 @@ CLASS zcl_fixture_wire IMPLEMENTATION.
         )->a( n = `xmlns:mvc`  v = `sap.ui.core.mvc`
         )->a( n = `xmlns:core` v = `sap.ui.core`
         )->open( `Page`
+
+          " bound in the view: transported for a reason
+          )->leaf( `Input`
+            )->a( n = `value` v = client->_bind( name )
 
           " correct wires - never reported
           )->leaf( `Button`

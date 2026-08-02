@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">24 error</span>
+      <span class="badge error">25 error</span>
       <span class="badge warning">11 warning</span>
-      <span class="badge hint">2 hint</span>
+      <span class="badge hint">3 hint</span>
       <span class="badge fix">3 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 37 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 39 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -286,6 +286,15 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
         <p class="summary">a local variable bound</p>
         <p class="detail">The instance is serialized across the roundtrip, the method stack is not — so the value is gone when the answer comes back. Bind an instance attribute.</p>
       </article>
+      <article class="rule" id="collapsed-brace-in-style" data-search="collapsed-brace-in-style an escaped css brace written inside a |…| template an escape only reaches the serialized attribute when the backslash is taken verbatim, which is what a backtick literal does. inside an abap string template the backslash is the template's own escape: \{ collapses to a bare { before the builder ever sees it, and the view dies exactly as if nothing had been escaped. write the stylesheet in a backtick literal — or, if it has to be a template, double the backslash (\\\{). invisible to unescaped-brace-in-style, which reads the source and sees a backslash in front of every brace; only the literal's kind tells the two apart. error">
+        <h3><a href="#collapsed-brace-in-style">collapsed-brace-in-style</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">an escaped CSS brace written inside a <code>|…|</code> template</p>
+        <p class="detail">An escape only reaches the serialized attribute when the backslash is taken verbatim, which is what a backtick literal does. Inside an ABAP string template the backslash is the template's own escape: <code>\{</code> collapses to a bare <code>{</code> before the builder ever sees it, and the view dies exactly as if nothing had been escaped. Write the stylesheet in a backtick literal — or, if it has to be a template, double the backslash (<code>\\\{</code>). Invisible to <code>unescaped-brace-in-style</code>, which reads the source and sees a backslash in front of every brace; only the literal's kind tells the two apart.</p>
+        <pre><code>DATA(css) = |&lt;style&gt;.a \{color:red\}&lt;/style&gt;|.  " collapses
+DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></pre>
+      </article>
       <article class="rule" id="event-arg-out-of-range" data-search="event-arg-out-of-range get_event_arg( n ) past the t_arg the event declares the arguments are static — they are written at the raise site — so reading past them is never anything but a mistake: initial in abap, a 500 in the transpiled runtime, and either way not the value the handler works with. judged only for a literal index, inside the handler of an event the class raises itself with client-&gt;_event( ), and never across a method boundary: an event arriving from a message_box_display( onclose = ) callback or a frontend action carries arguments from a source this pass cannot see. error">
         <h3><a href="#event-arg-out-of-range">event-arg-out-of-range</a>
           <span class="badge error">error</span>
@@ -359,6 +368,13 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
         </h3>
         <p class="summary">a hand-written <code>{/TYPO}</code> the derived model has no path for</p>
         <p class="detail">The field just stays empty — no error, anywhere. Inside a bound aggregation a relative <code>{TYPO}</code> is resolved against the row, so a misspelled column field is caught too, but only where the row shape is known from the class's <code>TYPES</code>. Never guessed.</p>
+      </article>
+      <article class="rule" id="unused-public-attribute" data-search="unused-public-attribute a public attribute nothing in the class ever touches only public attributes are serialized into the model (z2ui5_cl_core_srv_model filters on visibility), so every one of them is shipped to the browser on every roundtrip. one that is never bound, never read and never written is pure transport weight. deliberately narrower than "not bound in any view": an attribute used only in abap code is not dead, it is state — public is precisely how a value survives the roundtrip. only a name that appears exactly once in the whole class, its own declaration, is reported, and only as a hint: an attribute can still be read from outside the class, which no single source file can see. hint">
+        <h3><a href="#unused-public-attribute">unused-public-attribute</a>
+          <span class="badge hint">hint</span>
+        </h3>
+        <p class="summary">a PUBLIC attribute nothing in the class ever touches</p>
+        <p class="detail">Only PUBLIC attributes are serialized into the model (<code>z2ui5_cl_core_srv_model</code> filters on visibility), so every one of them is shipped to the browser on every roundtrip. One that is never bound, never read and never written is pure transport weight. Deliberately narrower than "not bound in any view": an attribute used only in ABAP code is not dead, it is *state* — PUBLIC is precisely how a value survives the roundtrip. Only a name that appears exactly once in the whole class, its own declaration, is reported, and only as a hint: an attribute can still be read from outside the class, which no single source file can see.</p>
       </article>
       <article class="rule" id="view-never-displayed" data-search="view-never-displayed a view is built but never handed to the client an empty page and no error: the builder ran, the result was never passed to client-&gt;view_display( ) (or a popup/nav call). error">
         <h3><a href="#view-never-displayed">view-never-displayed</a>
