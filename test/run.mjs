@@ -60,6 +60,15 @@ assert(has('too-many-children', (f) => f.member === 'customHeader' && f.count ==
   'structure: second child in a 0..1 aggregation flagged');
 assert(has('excess-shut'), 'structure: shut( ) past the root flagged (asserts at runtime)');
 
+// the target UI5 version drives BOTH directions: too-new members are only
+// a finding below it, deprecations only from the version they take effect
+const depLate = await checkFiles([f('deprecated-late.clas.abap')], { render: false, minUi5: '1.71' });
+assert(!depLate[0].findings.some((x) => x.type === 'control-deprecated'),
+  'target version: a control deprecated after the target is not reported');
+const depNow = await checkFiles([f('deprecated-late.clas.abap')], { render: false, minUi5: '1.150' });
+assert(depNow[0].findings.some((x) => x.type === 'control-deprecated'),
+  'target version: the same control IS reported when the target reaches its deprecation');
+
 const xml = by('sample.view.xml');
 assert(xml.kind === 'xml', 'xml: raw view detected');
 assert(xml.findings.length === 0, 'xml: no property findings');

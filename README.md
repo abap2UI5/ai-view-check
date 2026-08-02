@@ -19,8 +19,8 @@ Two gates:
    | `unknown-aggregation` | `Page contentt` — no such aggregation |
    | `too-many-children` | two controls in a 0..1 aggregation |
    | `invalid-aggregation-child` | a control the aggregation's type does not accept |
-   | `control-too-new` / `member-too-new` | newer than your UI5 floor (default **1.71**) |
-   | `control-deprecated` | deprecated in current UI5 |
+   | `control-too-new` / `member-too-new` | introduced after your target UI5 version (default **1.71**) |
+   | `control-deprecated` | already deprecated at your target version |
    | `excess-shut` | one `shut( )` more than the builder tree is deep — asserts at runtime |
 
    Bindings and expressions are never value-checked (their value is a
@@ -48,7 +48,7 @@ npm ci
 npx playwright install chromium   # once, for the render gate
 
 node cli.mjs src                          # check everything under src/
-node cli.mjs src --min-ui5 1.71           # explicit UI5 floor
+node cli.mjs src --ui5 1.120              # check against UI5 1.120
 node cli.mjs src --allow sap.m.GenericTile.systemInfo   # accepted deviation
 node cli.mjs src --no-render              # property gate only (no browser)
 node cli.mjs src --advisory               # report, never fail the build
@@ -56,6 +56,24 @@ node cli.mjs src --json                   # machine-readable output (for tools)
 ```
 
 Exit code 1 on any finding (unless `--advisory`) — CI-ready.
+
+### Which UI5 version is checked against
+
+`--ui5 <version>` (alias `--min-ui5`, setting `abap2ui5.viewCheck.minUi5` in
+the VS Code extension) is the version **your system runs**. It drives both
+directions:
+
+- a control or member introduced *after* it is a finding (it would not exist
+  on your system),
+- a deprecation is only reported once it is *in effect* at that version — a
+  control deprecated as of 1.149 is silent for a 1.71 target.
+
+The metadata itself comes from the snapshot in `data/properties.json`,
+generated from the `@openui5/*` sources this repo pins (its version is
+printed in the CLI summary and stored as `ui5Version`). Existence checks are
+therefore made against that snapshot: a control **removed** in a later UI5
+than your target cannot be distinguished from a typo, so keep the snapshot at
+or above the versions you target.
 
 ## GitHub Action
 

@@ -14,7 +14,10 @@
  *               with a typed mock model derived from the class
  *
  * Options:
- *   --min-ui5 <ver>    UI5 floor for the property gate (default 1.71)
+ *   --ui5 <ver>        the UI5 version to check against - the version your
+ *                      system runs (default 1.71, alias --min-ui5). Controls and
+ *                      members introduced later are reported, as are
+ *                      deprecations already in effect at that version.
  *   --allow <name>     allow a control or control.member despite the floor
  *                      (repeatable, e.g. --allow sap.m.Avatar.displaySize)
  *   --no-render        skip the render gate (no browser/@openui5 needed)
@@ -24,13 +27,14 @@
  */
 import path from 'path';
 import { checkFiles, collectFiles } from './lib/index.mjs';
+import { snapshotVersion } from './lib/properties.mjs';
 
 const args = process.argv.slice(2);
 const opt = { minUi5: '1.71', allow: [], render: true, properties: true, advisory: false, verbose: false, json: false };
 const paths = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
-  if (a === '--min-ui5') opt.minUi5 = args[++i];
+  if (a === '--min-ui5' || a === '--ui5') opt.minUi5 = args[++i];
   else if (a === '--allow') opt.allow.push(args[++i]);
   else if (a === '--no-render') opt.render = false;
   else if (a === '--no-properties') opt.properties = false;
@@ -38,7 +42,7 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--verbose') opt.verbose = true;
   else if (a === '--json') opt.json = true;
   else if (a === '--help' || a === '-h') {
-    console.log('usage: abap2ui5-linter [paths...] [--min-ui5 1.71] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
+    console.log('usage: abap2ui5-linter [paths...] [--ui5 1.71] [--allow control[.member]] [--no-render] [--no-properties] [--advisory] [--json] [--verbose]');
     process.exit(0);
   } else paths.push(a);
 }
@@ -110,6 +114,10 @@ if (opt.json) {
     })),
   }));
 } else {
-  console.log(`\nabap2ui5-linter: ${results.length} file(s), ${failing} failing, ${skipped} skipped.`);
+  const snap = snapshotVersion();
+  console.log(
+    `\nabap2ui5-linter: ${results.length} file(s), ${failing} failing, ${skipped} skipped ` +
+    `(target UI5 ${opt.minUi5}${snap ? `, metadata from ${snap}` : ''}).`
+  );
 }
 if (!opt.advisory && failing > 0) process.exit(1);
