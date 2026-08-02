@@ -54,6 +54,8 @@ Two gates:
    | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
    | `view-never-displayed` | a view is built but never handed to the client — an empty page, no error |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
+   | `invalid-frontend-action` | a frontend-action `t_arg` outside the set the runtime accepts — an unknown `CONTROL_GLOBAL` object or method, a `BINDING_CALL` method that is not `filter`/`sort`, or `CONTROL_BY_ID`'s obsolete empty view slot. The browser logs and does nothing |
+   | `unescaped-brace-in-style` | literal CSS braces in a `<style>` block — the XMLView parser reads them as bindings and the view dies; write `\{` and `\}` |
    | `event-arg-out-of-range` | `get_event_arg( n )` past the `t_arg` the event declares — the read comes back empty (a 500 in the transpiled runtime). Judged only for a literal index, inside the handler of an event the class raises itself |
    | `event-arg-unresolved` | a bare-brace `t_arg` literal (`` `{COL}` ``): the runtime sends it verbatim but only `$`-prefixed expressions are resolved by UI5, so `get_event_arg( )` receives an **empty** value with no error anywhere. Write `` `${COL}` `` (a template *starting* with a `{0}` placeholder is fine — that form is quoted) |
 

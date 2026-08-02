@@ -488,6 +488,34 @@ ENDCLASS.`;
   const none = checkAbapRules(foreign).filter((x) => x.type === 'event-arg-out-of-range');
   assert(none.length === 0,
     `event-arg-out-of-range: an event the class does not raise, and a read in another method, are not judged (got ${none.length})`);
+
+  // --- frontend-action wires and CSS braces ---------------------------------
+  const wire = checkAbapSource(fs.readFileSync(f('wire.clas.abap'), 'utf8'));
+  const actions = wire.findings.filter((x) => x.type === 'invalid-frontend-action');
+  assert(actions.length === 4, `invalid-frontend-action: four bad wires (got ${actions.length})`);
+  assert(actions.some((x) => x.control === 'CONTROL_GLOBAL' && x.value === 'MESSAGE_TOASTER' && x.member === 'global object'),
+    'invalid-frontend-action: an unknown global object');
+  assert(actions.some((x) => x.control === 'CONTROL_GLOBAL' && x.value === 'display' && x.allowed.join() === 'show'),
+    'invalid-frontend-action: a method the global does not offer, with its allowed set');
+  assert(actions.some((x) => x.control === 'BINDING_CALL' && x.value === 'refresh'),
+    'invalid-frontend-action: a binding method that is not filter or sort');
+  assert(actions.some((x) => x.member === 'view slot'),
+    'invalid-frontend-action: the obsolete empty view slot of CONTROL_BY_ID');
+  assert(!actions.some((x) => ['MESSAGE_TOAST', 'show', 'hide', 'BUSY_INDICATOR'].includes(x.value)),
+    'invalid-frontend-action: a correct wire is never reported');
+
+  const { ACTION_ARGS, GLOBAL_TARGETS } = await import('../lib/frontend-actions.mjs');
+  assert(Object.keys(ACTION_ARGS).every((a) => a === a.toLowerCase()) && GLOBAL_TARGETS.MESSAGE_TOAST.includes('show'),
+    'invalid-frontend-action: the catalog is keyed by the cs_event constant name');
+
+  const css = wire.findings.filter((x) => x.type === 'unescaped-brace-in-style');
+  assert(css.length === 1 && css[0].count === 2,
+    `unescaped-brace-in-style: one finding per stylesheet, counting its braces (got ${css.length}/${css[0]?.count})`);
+  assert(checkAbapRules('DATA(c) = `<style>.a \\{color:red\\}</style>`.').length === 0,
+    'unescaped-brace-in-style: a correctly escaped stylesheet is silent');
+  assert(checkAbapRules('DATA(c) = `<style>.a \\{x\\}</style>` && `toast {0} done`.')
+    .filter((x) => x.type === 'unescaped-brace-in-style').length === 0,
+    'unescaped-brace-in-style: a brace outside the <style> span is not CSS (the corpus false positive)');
 }
 
 // ------------------------------------------------------------------- fix ----

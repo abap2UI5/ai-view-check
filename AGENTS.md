@@ -13,7 +13,7 @@ and GitHub Action, no SAP system required.
 ```bash
 npm ci
 npx playwright install chromium   # BEFORE npm test - the first test uses the render gate
-npm test                          # test/run.mjs, home-grown asserts, ~140 assertions
+npm test                          # test/run.mjs, home-grown asserts, ~150 assertions
 npm run generate-schema           # after adding a rule - the test gates the drift
 npm run generate-rules-page       # ditto: docs/index.html, the published reference
 node cli.mjs <files> --no-render  # fast property-gate-only loop while iterating
@@ -51,7 +51,7 @@ exact line):
 | Emitting file | Finding types |
 | --- | --- |
 | `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `binding-type-mismatch`, `missing-accessibility` |
-| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `event-arg-out-of-range`, `view-never-displayed` |
+| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `event-arg-out-of-range`, `invalid-frontend-action`, `unescaped-brace-in-style`, `view-never-displayed` |
 | `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `display-root-mismatch`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
 | `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc`/`.json` loader (discovery, validation, precedence, the `rules` block). New config keys go through its KNOWN set + a run.mjs assertion |
@@ -74,6 +74,15 @@ stale:
 npm run generate-schema      # data/abap2ui5lint.schema.json
 npm run generate-rules-page  # docs/index.html
 ```
+
+`lib/frontend-actions.mjs` is the one **hand-maintained** knowledge file:
+the closed whitelists `invalid-frontend-action` judges against. Its source of
+truth is abap2UI5's `z2ui5_cl_app_frontendaction_js` — a JavaScript module
+embedded in an ABAP string concatenation, which is not worth parsing, and
+that repo is not a dependency here. Refresh it by reading `GLOBAL_TARGETS`
+and `BINDING_METHODS` there. Only **closed** sets belong in it: `CONTROL_BY_ID`
+accepts any control method that does not match a deny prefix, so a whitelist
+for it would report correct code.
 
 A rule may also carry `fixes: [{ start, end, text }]` (see `lib/fix.mjs`):
 exact spans in the source it was given, applied by `--fix`. Attach them only
@@ -115,16 +124,12 @@ Candidates, distilled from the app guide and the ai-demokit gotchas, in
 rough feasibility order (each new rule follows the five-places rule above
 plus a severity classification in `lib/findings.mjs`):
 
-1. **Frontend-action wire tokens** — the first `t_arg` of `control_global`
-   must be a whitelisted global (`MESSAGE_TOAST`, …), `binding_call` methods
-   must be `filter`/`sort`, `CONTROL_METHODS` args are positional and extras
-   are silently dropped. Needs a small committed catalog generated from the
-   core's `FrontendAction.js` (same pattern as `data/properties.json`).
-2. **Collapsed-brace expression bindings** — a `\{`-escaped brace inside a
+1. **Collapsed-brace expression bindings** — a `\{`-escaped brace inside a
    `|…|` template around a relative row field collapses and the attribute
    silently stops being a binding; heuristics exist in ai-demokit's
-   pattern-lint and could generalize.
-3. **Unbound PUBLIC attribute** (hint) — every PUBLIC attribute is serialized
+   pattern-lint and could generalize. (Its neighbour, an *un*escaped brace in
+   a `<style>` block, is now `unescaped-brace-in-style`.)
+2. **Unbound PUBLIC attribute** (hint) — every PUBLIC attribute is serialized
    into the draft and shipped to the browser per roundtrip; one that no view
    ever binds is dead transport weight. Needs the class's PUBLIC DATA set
    minus every `_bind`/`{FIELD}` reference. **Weakest of the three**: an
@@ -134,8 +139,9 @@ plus a severity classification in `lib/findings.mjs`):
 
 Done and no longer on this list: popup/view root mismatch
 (`display-root-mismatch`), a character field on a strictly typed property
-(`binding-type-mismatch`), and reading past the declared `t_arg` arity
-(`event-arg-out-of-range`).
+(`binding-type-mismatch`), reading past the declared `t_arg` arity
+(`event-arg-out-of-range`), and the frontend-action wire tokens
+(`invalid-frontend-action`, catalog in `lib/frontend-actions.mjs`).
 
 **Measure a new rule against the ai-demokit corpus before shipping it.**
 `node cli.mjs /path/to/ai-demokit/src --no-render --json` over 282 real

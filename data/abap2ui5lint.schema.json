@@ -143,6 +143,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'invalid-expression-binding' — default severity: error"
         },
+        "invalid-frontend-action": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'invalid-frontend-action' — default severity: error"
+        },
         "invalid-property-value": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'invalid-property-value' — default severity: error"
@@ -182,6 +186,10 @@
         "undeclared-namespace": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'undeclared-namespace' — default severity: error"
+        },
+        "unescaped-brace-in-style": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'unescaped-brace-in-style' — default severity: error"
         },
         "unknown-aggregation": {
           "$ref": "#/definitions/rule",

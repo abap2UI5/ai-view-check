@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">22 error</span>
+      <span class="badge error">24 error</span>
       <span class="badge warning">11 warning</span>
       <span class="badge hint">2 hint</span>
       <span class="badge fix">3 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 35 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 37 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -318,6 +318,15 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
         <p class="summary">an event nothing reacts to</p>
         <p class="detail">Usually a dead control — but in abap2UI5 an event also forces a roundtrip, and that alone synchronises the model back into ABAP. So this is a hint, never an error, and it is skipped entirely when handler names are not literals.</p>
       </article>
+      <article class="rule" id="invalid-frontend-action" data-search="invalid-frontend-action a frontend-action t_arg outside the set the runtime accepts a client-&gt;_event_client( ) / client-&gt;follow_up_action( ) wire is dispatched in the browser by name, and a name outside the whitelist raises nothing anywhere: frontendaction logs to the console and the control does nothing when pressed. judged only for literal arguments and only where the runtime's set is closed — the control_global object and its method, the binding_call method, and control_by_id's obsolete empty view slot (which shifts the method out of position). control_by_id's method list is open by design and is never judged. error">
+        <h3><a href="#invalid-frontend-action">invalid-frontend-action</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a frontend-action <code>t_arg</code> outside the set the runtime accepts</p>
+        <p class="detail">A <code>client-&gt;_event_client( )</code> / <code>client-&gt;follow_up_action( )</code> wire is dispatched in the browser by name, and a name outside the whitelist raises nothing anywhere: FrontendAction logs to the console and the control does nothing when pressed. Judged only for literal arguments and only where the runtime's set is closed — the <code>CONTROL_GLOBAL</code> object and its method, the <code>BINDING_CALL</code> method, and <code>CONTROL_BY_ID</code>'s obsolete empty view slot (which shifts the method out of position). <code>CONTROL_BY_ID</code>'s method list is open by design and is never judged.</p>
+        <pre><code>client-&gt;_event_client( val   = client-&gt;cs_event-control_global
+                       t_arg = VALUE #( ( `MESSAGE_TOASTER` ) ( `show` ) ( `hi` ) ) )</code></pre>
+      </article>
       <article class="rule" id="obsolete-binder" data-search="obsolete-binder client-&gt;_bind_edit( ) — superseded by client-&gt;_bind( ) _bind is two-way as well. the one documented exception is a call passing custom_mapper_back or custom_filter_back, which _bind has no parameters for — such a call is not reported. warning">
         <h3><a href="#obsolete-binder">obsolete-binder</a>
           <span class="badge warning">warning</span>
@@ -335,6 +344,14 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
         <p class="summary">an ABAP boolean written straight into the view</p>
         <p class="detail">It arrives as <code>'X'</code> or <code>' '</code>, and UI5 reads any non-empty string as true — so <code>visible = abap_false</code> makes the control <strong>visible</strong>. The classic silent inversion. Wrap it in <code>z2ui5_cl_ai_xml=&gt;as_bool( )</code>.</p>
         <p class="fixnote"><strong>--fix:</strong> A bare token is wrapped in <code>z2ui5_cl_ai_xml=&gt;as_bool( )</code>; an expression is left alone.</p>
+      </article>
+      <article class="rule" id="unescaped-brace-in-style" data-search="unescaped-brace-in-style literal css braces in a &lt;style&gt; block ui5's xmlview parser reads an unescaped { in an attribute value as the start of a binding, so a stylesheet injected through a core:html content attribute takes the whole view down with a binding parse error. write every brace as \{ and \}. judged between &lt;style&gt; and &lt;/style&gt;, so a {0} toast template or a ${$parameters&gt;/…} wire elsewhere in the same builder chain is never mistaken for css. error">
+        <h3><a href="#unescaped-brace-in-style">unescaped-brace-in-style</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">literal CSS braces in a <code>&lt;style&gt;</code> block</p>
+        <p class="detail">UI5's XMLView parser reads an unescaped <code>{</code> in an attribute value as the start of a binding, so a stylesheet injected through a <code>core:HTML</code> content attribute takes the whole view down with a binding parse error. Write every brace as <code>\{</code> and <code>\}</code>. Judged between <code>&lt;style&gt;</code> and <code>&lt;/style&gt;</code>, so a <code>{0}</code> toast template or a <code>${$parameters&gt;/…}</code> wire elsewhere in the same builder chain is never mistaken for CSS.</p>
+        <pre><code>DATA(css) = `&lt;style&gt;.box \{color:red\}&lt;/style&gt;`.</code></pre>
       </article>
       <article class="rule" id="unknown-binding-path" data-search="unknown-binding-path a hand-written {/typo} the derived model has no path for the field just stays empty — no error, anywhere. inside a bound aggregation a relative {typo} is resolved against the row, so a misspelled column field is caught too, but only where the row shape is known from the class's types. never guessed. warning">
         <h3><a href="#unknown-binding-path">unknown-binding-path</a>
