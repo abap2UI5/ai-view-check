@@ -313,6 +313,28 @@ assert(!misplaced(view('  )->open( `Table` )->open( `columns` )->open( `Column` 
 assert(!misplaced(view('  )->open( `Table` )->open( `columns` )->open( n = `Thing` ns = `my` )->open( `content` )')).length,
   'missing shut: a control from an unknown library still counts as a control in between');
 
+// a control the aggregation's type does not accept: UI5 refuses the child and
+// the part of the view below it silently disappears
+const childOf = (inner) => checkAbapSource(view(inner), { render: false })
+  .findings.filter((x) => x.type === 'invalid-aggregation-child');
+assert(childOf('  )->open( `Table` )->open( `columns` )->leaf( `Button` )')
+  .some((x) => x.control === 'sap.m.Button' && x.parentControl === 'sap.m.Table'
+    && x.member === 'columns' && x.expected === 'sap.m.Column'),
+  'aggregation child: a Button inside Table columns is reported with the expected type');
+assert(!childOf('  )->open( `Table` )->open( `columns` )->leaf( `Column` )').length,
+  'aggregation child: the type the aggregation declares is accepted');
+
+// levels left open at stringify( ) are harmless (render( ) closes the tree) -
+// a note for --verbose, never a finding
+{
+  const open = prepareAbap(view('  )->open( `Page` )->leaf( `Button` )'));
+  assert(open.notes.some((n) => /level\(s\) left open/.test(n)),
+    'open levels: an unshut tree at stringify( ) is noted');
+  assert(!checkAbapSource(view('  )->open( `Page` )->leaf( `Button` )'), { render: false })
+    .findings.some((x) => x.type === 'open-levels'),
+    'open levels: the note never becomes a finding');
+}
+
 // a tag in a foreign namespace (raw XHTML, a custom-control library) is not
 // a UI5 aggregation of its parent - it is outside what the metadata can judge
 const foreign = checkAbapSource(`
@@ -733,10 +755,15 @@ ENDCLASS.`;
 
   assert(/^abap2ui5-linter \d+\.\d+\.\d+ \(.*cli\.mjs\)$/m.test(run(['--version'])),
     'report: --version prints version and script location');
-  let usage = '';
-  try { cp.execFileSync('node', [CLI, '--nope'], { encoding: 'utf8', stdio: 'pipe' }); }
-  catch (e) { usage = e.stderr ?? ''; }
-  assert(/unknown option '--nope'/.test(usage), 'report: an unknown flag is refused, not read as a path');
+  const fails = (args) => {
+    try { cp.execFileSync('node', [CLI, ...args], { encoding: 'utf8', stdio: 'pipe' }); return ''; }
+    catch (e) { return e.status === 2 ? (e.stderr ?? '') : ''; }
+  };
+  assert(/unknown option '--nope'/.test(fails(['--nope'])), 'report: an unknown flag is refused, not read as a path');
+  assert(/--allow needs a value/.test(fails([dumps, '--no-render', '--allow'])),
+    'report: a flag missing its value is refused instead of crashing the gate');
+  assert(/no such file or directory: .*no-such-path/.test(fails(['no-such-path', '--no-render'])),
+    'report: a mistyped path is one clean line and exit 2, not a stack trace');
 }
 
 // ---------------------------------------------------------------- schema ----
@@ -775,6 +802,13 @@ ENDCLASS.`;
     'rules page: every rule has an anchor to link to');
   assert(!/<script src|<link rel="stylesheet"|https?:\/\/(?!github\.com|abap2ui5)/.test(page),
     'rules page: self-contained - no external stylesheet, script or font');
+
+  // the README finding tables are hand-written - the one of the five places a
+  // new rule moves to (AGENTS.md) that nothing generated. Now gated too.
+  const readme = fs.readFileSync(path.join(FIX, '..', '..', 'README.md'), 'utf8');
+  const missing = RULES.filter((id) => !readme.includes(`\`${id}\``));
+  assert(!missing.length,
+    `README: every rule id appears in the finding tables (missing: ${missing.join(', ') || 'none'})`);
 }
 
 console.log(failed ? `\n${failed} assertion(s) failed` : '\nall assertions passed');

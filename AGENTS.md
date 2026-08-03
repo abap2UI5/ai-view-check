@@ -131,9 +131,10 @@ abaplint's `Error/Warning/Info` — `hint` is already load-bearing across
 consumers), and rule ids are kebab-case like ui5lint's rather than abaplint's
 snake_case.
 
-Known test-coverage debt (assert these when touching the area):
-`invalid-aggregation-child`, `sapui5-only-control` and `open-levels`
-currently have no test assertion.
+The former test-coverage debt (`invalid-aggregation-child`,
+`sapui5-only-control`, `open-levels`) is worked off — every rule now has an
+assertion, and the README finding tables (place 5 above) are gated by a
+test that checks every rule id appears in them.
 
 ## Static-check roadmap — app knowledge that can still move into the gate
 
