@@ -191,6 +191,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'sapui5-only-control' — default severity: error"
         },
+        "settable-property-via-action": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'settable-property-via-action' — default severity: hint"
+        },
         "too-many-children": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'too-many-children' — default severity: error"

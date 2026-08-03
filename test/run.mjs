@@ -528,6 +528,16 @@ ENDCLASS.`;
   assert(none.length === 0,
     `event-arg-out-of-range: an event the class does not raise, and a read in another method, are not judged (got ${none.length})`);
 
+  // --- an imperative setter where the control has a bindable property -------
+  const setters = checkAbapSource(fs.readFileSync(f('setters.clas.abap'), 'utf8'))
+    .findings.filter((x) => x.type === 'settable-property-via-action');
+  assert(setters.length === 1 && setters[0].member === 'expanded' && setters[0].control === 'sap.m.Panel',
+    `settable-property-via-action: only the bindable property is reported (got ${setters.map((x) => `${x.control}.${x.member}`).join() || 'none'})`);
+  assert(!setters.some((x) => x.member === 'selectedSection'),
+    'settable-property-via-action: an association cannot be bound and is never reported');
+  assert(!setters.some((x) => x.member === 'asyncURLHandler'),
+    'settable-property-via-action: a function-typed property cannot travel in a JSON model');
+
   // --- a relative binding with no context to resolve against ----------------
   const orphan = checkAbapSource(fs.readFileSync(f('orphanbind.clas.abap'), 'utf8'))
     .findings.filter((x) => x.type === 'relative-binding-without-context');

@@ -153,6 +153,7 @@ worked off**; every entry shipped:
 | Date/time model type without a `source` format | `date-type-without-source` |
 | `CONTROL_BY_ID` naming an id no view declares | `frontend-action-unknown-id` |
 | Relative binding on a control with no binding context | `relative-binding-without-context` |
+| `CONTROL_BY_ID` `set…( )` on a bindable property | `settable-property-via-action` |
 
 The last one shipped **narrower than it was written**: "no view binds it" is
 not the same as dead. A PUBLIC attribute used only in ABAP code is state, not
@@ -186,6 +187,16 @@ version reported four bindings in `sap.ui.table` **column templates**, which
 are cloned per row and get their context from the table's `rows` binding in a
 sibling aggregation. The corpus was right; the rule now treats any
 `template` aggregation as a row context.
+
+`settable-property-via-action` needed a THIRD input the ABAP-side rules did
+not have: what the id in a wire actually is. `collectControlIds` +
+`memberSection` / `propertyDecl` are exported from `properties.mjs` for it,
+and `checkAbapRules` now takes `{ data, controlIds }` — with neither, the
+rule simply stays silent. Its whole precision lives in the metadata: an
+**association** (`selectedSection`) and a **function-typed** property
+(`MessagePopover.asyncURLHandler`) can never be bound, so both are excluded
+rather than reported and excused. It found five real ports on the corpus,
+all five converted to bindings.
 
 New candidates go here as they are found. Two rules of the trade the last
 rounds established, before anything is added:

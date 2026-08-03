@@ -74,10 +74,10 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <div class="counts">
       <span class="badge error">28 error</span>
       <span class="badge warning">11 warning</span>
-      <span class="badge hint">3 hint</span>
+      <span class="badge hint">4 hint</span>
       <span class="badge fix">3 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 42 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 43 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -353,6 +353,16 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         <p class="summary"><code>client-&gt;_bind_edit( )</code> — superseded by <code>client-&gt;_bind( )</code></p>
         <p class="detail"><code>_bind</code> is two-way as well. The one documented exception is a call passing <code>custom_mapper_back</code> or <code>custom_filter_back</code>, which <code>_bind</code> has no parameters for — such a call is not reported.</p>
         <p class="fixnote"><strong>--fix:</strong> Rewritten to <code>client-&gt;_bind( )</code>, the arguments untouched.</p>
+      </article>
+      <article class="rule" id="settable-property-via-action" data-search="settable-property-via-action a control_by_id set…( ) where the control has a bindable property of that name the project rule is prefer a bindable property over a frontend action: a two-way bound property keeps the state in the model, where it survives a view rebuild, a draft restore and the browser back button — a frontend action does not, and it also needs a round-trip to be re-applied. only properties are reported: an association (sap.uxap.objectpagelayout.selectedsection) and an aggregation cannot be data-bound at all, so driving those imperatively is the only way and is never flagged. a hint, not an error — an imperative call can still be the right answer when the sample's point is the imperative api itself. hint">
+        <h3><a href="#settable-property-via-action">settable-property-via-action</a>
+          <span class="badge hint">hint</span>
+        </h3>
+        <p class="summary">a <code>CONTROL_BY_ID</code> <code>set…( )</code> where the control has a bindable property of that name</p>
+        <p class="detail">The project rule is *prefer a bindable property over a frontend action*: a two-way bound property keeps the state in the model, where it survives a view rebuild, a draft restore and the browser Back button — a frontend action does not, and it also needs a round-trip to be re-applied. Only <strong>properties</strong> are reported: an association (<code>sap.uxap.ObjectPageLayout.selectedSection</code>) and an aggregation cannot be data-bound at all, so driving those imperatively is the only way and is never flagged. A hint, not an error — an imperative call can still be the right answer when the sample's point is the imperative API itself.</p>
+        <pre><code>follow_up_action( val = client-&gt;cs_event-control_by_id
+                  t_arg = VALUE #( ( `sideContent` ) ( `setShowSideContent` ) ( `true` ) ) )
+" -&gt; a( n = `showSideContent` v = client-&gt;_bind( show_side ) )</code></pre>
       </article>
       <article class="rule" id="unconverted-abap-boolean" data-search="unconverted-abap-boolean an abap boolean written straight into the view it arrives as 'x' or ' ', and ui5 reads any non-empty string as true — so visible = abap_false makes the control visible. the classic silent inversion. wrap it in z2ui5_cl_ai_xml=&gt;as_bool( ). error">
         <h3><a href="#unconverted-abap-boolean">unconverted-abap-boolean</a>
