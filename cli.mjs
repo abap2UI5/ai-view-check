@@ -91,14 +91,20 @@ let configFlag = null;
 let noConfig = false;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
-  if (a === '--min-ui5' || a === '--ui5') { opt.minUi5 = args[++i]; seen.add('minUi5'); }
-  else if (a === '--distribution') { opt.distribution = String(args[++i]).toLowerCase(); seen.add('distribution'); }
+  // a flag that takes a value must actually have one - `--allow` as the last
+  // argument would otherwise push undefined and crash deep in the gate
+  const value = () => {
+    if (i + 1 >= args.length) die(`${a} needs a value\n${USAGE}`);
+    return args[++i];
+  };
+  if (a === '--min-ui5' || a === '--ui5') { opt.minUi5 = value(); seen.add('minUi5'); }
+  else if (a === '--distribution') { opt.distribution = value().toLowerCase(); seen.add('distribution'); }
   else if (a === '--openui5') { opt.distribution = 'openui5'; seen.add('distribution'); }
-  else if (a === '--allow') opt.allow.push(args[++i]);
+  else if (a === '--allow') opt.allow.push(value());
   else if (a === '--no-render') { opt.render = false; seen.add('render'); }
   else if (a === '--no-properties') { opt.properties = false; seen.add('properties'); }
   else if (a === '--advisory') { opt.failOn = 'never'; seen.add('failOn'); }
-  else if (a === '--config') configFlag = args[++i];
+  else if (a === '--config') configFlag = value();
   else if (a === '--no-config') noConfig = true;
   else if (a === '--quiet') opt.quiet = true;
   else if (a === '--fix') opt.fix = true;
@@ -106,12 +112,12 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--no-annotate') opt.annotate = false;
   else if (a === '--json') opt.format = 'json';
   else if (a === '--format') {
-    const format = String(args[++i]).toLowerCase();
+    const format = value().toLowerCase();
     if (!FORMATS.includes(format)) die(`--format takes ${FORMATS.join(', ')} (got '${format}')`);
     opt.format = format;
   }
   else if (a === '--fail-on') {
-    const level = String(args[++i]).toLowerCase();
+    const level = value().toLowerCase();
     if (![...SEVERITIES, 'never'].includes(level)) die(`--fail-on takes ${SEVERITIES.join(', ')} or never (got '${level}')`);
     opt.failOn = level;
     seen.add('failOn');
@@ -148,10 +154,18 @@ if (!noConfig) {
 }
 if (!paths.length) paths.push('src');
 
-const files = collectFiles(paths);
+let files;
+try {
+  files = collectFiles(paths);
+} catch (e) {
+  // a mistyped path is bad usage, not a crash - exit 2 with one clean line
+  die(e.code === 'ENOENT' ? `no such file or directory: ${e.path}` : e.message);
+}
 if (!files.length) {
   if (opt.format === 'json') {
-    console.log(JSON.stringify({ files: 0, failing: 0, skipped: 0, problems: 0, totals: { error: 0, warning: 0, hint: 0 }, failOn: opt.failOn, results: [] }));
+    // the same shape a real run prints - built by the one formatter, so the
+    // frozen --json contract cannot drift between the two paths
+    console.log(formatJson([], { ...summarize([]), failing: 0 }, opt));
   } else {
     console.log(`abap2ui5-linter: no checkable files under ${paths.join(', ')} (ABAP classes using z2ui5_cl_ai_xml, *.view.xml, *.fragment.xml)`);
   }
