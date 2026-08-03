@@ -186,6 +186,18 @@ sibling aggregation. The corpus was right; the rule now treats any
 New candidates go here as they are found. Two rules of the trade the last
 rounds established, before anything is added:
 
+**A corpus run also measures the RECONSTRUCTOR, not only the rule.** The
+`relative-binding-without-context` round found two model defects that had
+been invisible because they cancel each other out: a `DATA t_x TYPE
+ty_t_x.` (a **named** table type, not the inline `STANDARD TABLE OF`
+form) was modelled as a **scalar**, so the render gate silently rendered
+an empty aggregation and never instantiated the template — and fixing
+that surfaced the second one, an **unseeded** table being given an
+invented all-empty row, which the render gate then rejects on the first
+enum or date property (`"" is of type string, expected sap.m.AvatarShape`).
+Now: unseeded tables are empty for the renderer and a declared row in the
+shape, the same split the scalars already had.
+
 **Measure a new rule against the ai-demokit corpus before shipping it.**
 `node cli.mjs /path/to/ai-demokit/src --no-render --json` over 282 real
 ports, diffed per finding type against `main`, is what caught three separate

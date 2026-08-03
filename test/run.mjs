@@ -203,6 +203,44 @@ assert(!('ELEMENTS' in prep.model.T_ROWS[0]) && 'ELEMENTS' in prep.modelShape.T_
 assert(prep.model.T_ROWS[0].AMOUNT.SIZE === 560,
   'model: a nested structure seed parses as one structure, not as an empty table');
 
+// a DATA declared with a NAMED table type is a table too — the inline
+// `STANDARD TABLE OF` form is not the only one the corpus writes
+{
+  const named = prepareAbap(`CLASS zcl_named DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES z2ui5_if_app.
+    TYPES: BEGIN OF ty_s_row, name TYPE string, END OF ty_s_row.
+    TYPES ty_t_row TYPE STANDARD TABLE OF ty_s_row WITH EMPTY KEY.
+    DATA t_rows TYPE ty_t_row.
+    DATA t_late TYPE ty_t_row.
+ENDCLASS.
+CLASS zcl_named IMPLEMENTATION.
+  METHOD z2ui5_if_app~main.
+    t_rows = VALUE #( ( name = \`Notebook\` ) ).
+    DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+    v->open( n = \`View\` ns = \`mvc\`
+        )->a( n = \`xmlns\` v = \`sap.m\`
+        )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+        )->open( \`List\`
+            )->a( n = \`items\` v = client->_bind( t_rows )
+            )->open( \`items\`
+                )->leaf( \`StandardListItem\`
+                    )->a( n = \`title\` v = \`{NAME}\`
+        )->shut( ).
+    v->open( \`List\` )->a( n = \`items\` v = client->_bind( t_late ) ).
+    client->view_display( v->stringify( ) ).
+  ENDMETHOD.
+ENDCLASS.`);
+  assert(Array.isArray(named.model.T_ROWS) && named.model.T_ROWS[0].NAME === 'Notebook',
+    'model: a DATA with a named table type is a table, not a scalar');
+  // an UNSEEDED table: the shape keeps a declared row so paths stay judgeable,
+  // the render model gets nothing — an invented all-empty row is instantiated
+  // by the render gate and then fails strict validation on the first enum
+  assert(named.model.T_LATE.length === 0 && named.modelShape.T_LATE.length === 1
+    && 'NAME' in named.modelShape.T_LATE[0],
+    'model: an unseeded table is empty for the renderer and a declared row in the shape');
+}
+
 // no row shape, no verdict: a table of a type the class does not declare
 // could have any field, so nothing there is reported
 const opaque = `CLASS zcl_x DEFINITION PUBLIC.
