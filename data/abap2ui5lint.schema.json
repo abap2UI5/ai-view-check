@@ -99,6 +99,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'control-too-new' — default severity: warning"
         },
+        "date-type-without-source": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'date-type-without-source' — default severity: error"
+        },
         "display-root-mismatch": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'display-root-mismatch' — default severity: error"
@@ -139,6 +143,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'excess-shut' — default severity: error"
         },
+        "frontend-action-unknown-id": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'frontend-action-unknown-id' — default severity: error"
+        },
         "invalid-aggregation-child": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'invalid-aggregation-child' — default severity: error"
@@ -175,9 +183,17 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'obsolete-binder' — default severity: warning"
         },
+        "relative-binding-without-context": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'relative-binding-without-context' — default severity: error"
+        },
         "sapui5-only-control": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'sapui5-only-control' — default severity: error"
+        },
+        "settable-property-via-action": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'settable-property-via-action' — default severity: hint"
         },
         "too-many-children": {
           "$ref": "#/definitions/rule",

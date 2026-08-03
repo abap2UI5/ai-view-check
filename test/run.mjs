@@ -203,6 +203,44 @@ assert(!('ELEMENTS' in prep.model.T_ROWS[0]) && 'ELEMENTS' in prep.modelShape.T_
 assert(prep.model.T_ROWS[0].AMOUNT.SIZE === 560,
   'model: a nested structure seed parses as one structure, not as an empty table');
 
+// a DATA declared with a NAMED table type is a table too — the inline
+// `STANDARD TABLE OF` form is not the only one the corpus writes
+{
+  const named = prepareAbap(`CLASS zcl_named DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES z2ui5_if_app.
+    TYPES: BEGIN OF ty_s_row, name TYPE string, END OF ty_s_row.
+    TYPES ty_t_row TYPE STANDARD TABLE OF ty_s_row WITH EMPTY KEY.
+    DATA t_rows TYPE ty_t_row.
+    DATA t_late TYPE ty_t_row.
+ENDCLASS.
+CLASS zcl_named IMPLEMENTATION.
+  METHOD z2ui5_if_app~main.
+    t_rows = VALUE #( ( name = \`Notebook\` ) ).
+    DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+    v->open( n = \`View\` ns = \`mvc\`
+        )->a( n = \`xmlns\` v = \`sap.m\`
+        )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+        )->open( \`List\`
+            )->a( n = \`items\` v = client->_bind( t_rows )
+            )->open( \`items\`
+                )->leaf( \`StandardListItem\`
+                    )->a( n = \`title\` v = \`{NAME}\`
+        )->shut( ).
+    v->open( \`List\` )->a( n = \`items\` v = client->_bind( t_late ) ).
+    client->view_display( v->stringify( ) ).
+  ENDMETHOD.
+ENDCLASS.`);
+  assert(Array.isArray(named.model.T_ROWS) && named.model.T_ROWS[0].NAME === 'Notebook',
+    'model: a DATA with a named table type is a table, not a scalar');
+  // an UNSEEDED table: the shape keeps a declared row so paths stay judgeable,
+  // the render model gets nothing — an invented all-empty row is instantiated
+  // by the render gate and then fails strict validation on the first enum
+  assert(named.model.T_LATE.length === 0 && named.modelShape.T_LATE.length === 1
+    && 'NAME' in named.modelShape.T_LATE[0],
+    'model: an unseeded table is empty for the renderer and a declared row in the shape');
+}
+
 // no row shape, no verdict: a table of a type the class does not declare
 // could have any field, so nothing there is reported
 const opaque = `CLASS zcl_x DEFINITION PUBLIC.
@@ -490,6 +528,53 @@ ENDCLASS.`;
   assert(none.length === 0,
     `event-arg-out-of-range: an event the class does not raise, and a read in another method, are not judged (got ${none.length})`);
 
+  // --- an imperative setter where the control has a bindable property -------
+  const setters = checkAbapSource(fs.readFileSync(f('setters.clas.abap'), 'utf8'))
+    .findings.filter((x) => x.type === 'settable-property-via-action');
+  assert(setters.length === 1 && setters[0].member === 'expanded' && setters[0].control === 'sap.m.Panel',
+    `settable-property-via-action: only the bindable property is reported (got ${setters.map((x) => `${x.control}.${x.member}`).join() || 'none'})`);
+  assert(!setters.some((x) => x.member === 'selectedSection'),
+    'settable-property-via-action: an association cannot be bound and is never reported');
+  assert(!setters.some((x) => x.member === 'asyncURLHandler'),
+    'settable-property-via-action: a function-typed property cannot travel in a JSON model');
+
+  // --- a relative binding with no context to resolve against ----------------
+  const orphan = checkAbapSource(fs.readFileSync(f('orphanbind.clas.abap'), 'utf8'))
+    .findings.filter((x) => x.type === 'relative-binding-without-context');
+  assert(orphan.length === 1 && orphan[0].value === 'NAME',
+    `relative-binding-without-context: only the contextless root field is reported (got ${orphan.map((x) => x.value).join() || 'none'})`);
+  assert(!checkAbapSource(fs.readFileSync(f('rowpaths.clas.abap'), 'utf8'))
+    .findings.some((x) => x.type === 'relative-binding-without-context'),
+    'relative-binding-without-context: a relative binding inside a bound aggregation is not judged');
+
+  // --- CONTROL_BY_ID against the ids the class actually declares ------------
+  const ids = checkAbapRules(fs.readFileSync(f('actionid.clas.abap'), 'utf8'))
+    .filter((x) => x.type === 'frontend-action-unknown-id');
+  assert(ids.length === 1 && ids[0].value === 'messageview',
+    `frontend-action-unknown-id: only the miscased id is reported (got ${ids.map((x) => x.value).join() || 'none'})`);
+  assert(ids[0].allowed.sort().join() === 'mainPage,messageView',
+    `frontend-action-unknown-id: the finding carries the declared ids (got ${ids[0].allowed.join()})`);
+  assert(checkAbapRules(`
+    DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+    v->leaf( \`Page\` )->a( n = \`id\` v = |page{ idx }| ).
+    client->follow_up_action( val = client->cs_event-control_by_id
+                              t_arg = VALUE #( ( \`page1\` ) ( \`focus\` ) ) ).`)
+    .filter((x) => x.type === 'frontend-action-unknown-id').length === 0,
+    'frontend-action-unknown-id: a class that builds ids at runtime is not judged');
+  assert(checkAbapRules(fs.readFileSync(f('wire.clas.abap'), 'utf8'))
+    .filter((x) => x.type === 'frontend-action-unknown-id').length === 0,
+    'frontend-action-unknown-id: a class whose views declare no id at all is not judged');
+
+  // --- date/time model types over a JSON model ------------------------------
+  const dates = checkAbapSource(fs.readFileSync(f('datetype.clas.abap'), 'utf8'));
+  const noSource = dates.findings.filter((x) => x.type === 'date-type-without-source');
+  assert(noSource.length === 3,
+    `date-type-without-source: three sourceless date bindings (got ${noSource.length})`);
+  assert(noSource.map((x) => x.value).sort().join() === 'DateType,TimeType,sap.ui.model.type.DateTime',
+    `date-type-without-source: the alias and the full module name are both judged (got ${noSource.map((x) => x.value).sort().join()})`);
+  assert(!dates.findings.some((x) => x.type === 'date-type-without-source' && x.value === 'sap.ui.model.type.Float'),
+    'date-type-without-source: a non-date type never needs a source format');
+
   // --- frontend-action wires and CSS braces ---------------------------------
   const wire = checkAbapSource(fs.readFileSync(f('wire.clas.abap'), 'utf8'));
   const actions = wire.findings.filter((x) => x.type === 'invalid-frontend-action');
@@ -508,6 +593,10 @@ ENDCLASS.`;
   const { ACTION_ARGS, GLOBAL_TARGETS } = await import('../lib/frontend-actions.mjs');
   assert(Object.keys(ACTION_ARGS).every((a) => a === a.toLowerCase()) && GLOBAL_TARGETS.MESSAGE_TOAST.includes('show'),
     'invalid-frontend-action: the catalog is keyed by the cs_event constant name');
+  assert(checkAbapRules('client->follow_up_action( val = client->cs_event-control_global '
+    + 't_arg = VALUE #( ( `POPUP` ) ( `setWithinArea` ) ( `withinArea` ) ) ).')
+    .filter((x) => x.type === 'invalid-frontend-action').length === 0,
+    'invalid-frontend-action: POPUP.setWithinArea is a known global (abap2UI5 CONTROL_GLOBAL target)');
 
   const css = wire.findings.filter((x) => x.type === 'unescaped-brace-in-style');
   assert(css.length === 1 && css[0].count === 2,

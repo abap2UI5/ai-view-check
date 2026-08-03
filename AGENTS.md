@@ -47,6 +47,12 @@ every PR, and the same thing runs locally against sibling checkouts:
   teach the reconstructor a second builder.
 - The knowledge bound is the committed metadata snapshot (see below): the
   gate cannot know about anything newer than its `ui5Version`.
+- **One builder chain per document.** The reconstructor reads a chain as one
+  ABAP statement; a chain **split across statements on the same handle**
+  (`popover->open( … ).` then `popover->open( \`List\` )`) keeps its cursor at
+  runtime but is re-rooted here, so the document comes out with two roots.
+  It fails loudly (the render gate rejects it as native HTML content) rather
+  than silently — but the fix is in the port: write one chain per view.
 
 ## Rule taxonomy — where each finding type is emitted
 
@@ -89,7 +95,11 @@ the closed whitelists `invalid-frontend-action` judges against. Its source of
 truth is abap2UI5's `z2ui5_cl_app_frontendaction_js` — a JavaScript module
 embedded in an ABAP string concatenation, which is not worth parsing, and
 that repo is not a dependency here. Refresh it by reading `GLOBAL_TARGETS`
-and `BINDING_METHODS` there. Only **closed** sets belong in it: `CONTROL_BY_ID`
+and `BINDING_METHODS` there. Kept in step 2026-08-02 with abap2UI5's new
+`POPUP: setWithinArea` target (`sap.ui.core.Popup.setWithinArea`, @since
+1.89) — a target added upstream is a **silent** breaking change here until
+this file follows: the linter reports the correct new wire as an
+`invalid-frontend-action`. Only **closed** sets belong in it: `CONTROL_BY_ID`
 accepts any control method that does not match a deny prefix, so a whitelist
 for it would report correct code.
 
@@ -140,6 +150,10 @@ worked off**; every entry shipped:
 | Frontend-action wire tokens | `invalid-frontend-action` (+ `lib/frontend-actions.mjs`) |
 | Collapsed-brace expression bindings | `collapsed-brace-in-style`, alongside `unescaped-brace-in-style` |
 | Unbound PUBLIC attribute | `unused-public-attribute` |
+| Date/time model type without a `source` format | `date-type-without-source` |
+| `CONTROL_BY_ID` naming an id no view declares | `frontend-action-unknown-id` |
+| Relative binding on a control with no binding context | `relative-binding-without-context` |
+| `CONTROL_BY_ID` `set…( )` on a bindable property | `settable-property-via-action` |
 
 The last one shipped **narrower than it was written**: "no view binds it" is
 not the same as dead. A PUBLIC attribute used only in ABAP code is state, not
@@ -147,8 +161,57 @@ ballast — PUBLIC is precisely how a value survives the roundtrip — so only a
 name that appears once in the whole class, its own declaration, is reported.
 Keep that distinction if the rule is ever widened.
 
+The `date-type-without-source` entry came from the ai-demokit port of
+`sap.ui.core.sample.TypeDateAsDate` (app 282): its JSON model holds a JS
+`Date`, which an ABAP-fed model can never carry, so the port has to add
+`formatOptions.source` to every binding. Neither the property gate (the
+member exists) nor the render gate (it mocks the model) can see the
+omission — a static read of the binding-info string can.
+
+`frontend-action-unknown-id` came from the same batch (app 284, a
+`navigateBack` on a MessageView that lives in the popup slot): the id is
+the only part of a `CONTROL_BY_ID` wire nothing validated, and a wrong one
+is silent in exactly the way the whole rule family exists for. It is
+deliberately narrow — the id set is trusted only when EVERY `id`
+attribute of the class is a literal, so a class that builds ids at
+runtime is not judged at all.
+
+`relative-binding-without-context` closes the **flattened-element-binding**
+trap the ai-demokit porting guide could until now only describe as a manual
+audit ("a `_bind`-less `` v = `{FIELD}` `` whose FIELD is a root-level DATA
+scalar") — seven of its ports had shipped the wrong form. It needed a third
+view of the class: the model and the shape only carry BOUND variables, so
+`prepareAbap` now also returns `rootFields`, every attribute the class
+declares. And it is the textbook case for the corpus rule below — the first
+version reported four bindings in `sap.ui.table` **column templates**, which
+are cloned per row and get their context from the table's `rows` binding in a
+sibling aggregation. The corpus was right; the rule now treats any
+`template` aggregation as a row context.
+
+`settable-property-via-action` needed a THIRD input the ABAP-side rules did
+not have: what the id in a wire actually is. `collectControlIds` +
+`memberSection` / `propertyDecl` are exported from `properties.mjs` for it,
+and `checkAbapRules` now takes `{ data, controlIds }` — with neither, the
+rule simply stays silent. Its whole precision lives in the metadata: an
+**association** (`selectedSection`) and a **function-typed** property
+(`MessagePopover.asyncURLHandler`) can never be bound, so both are excluded
+rather than reported and excused. It found five real ports on the corpus,
+all five converted to bindings.
+
 New candidates go here as they are found. Two rules of the trade the last
 rounds established, before anything is added:
+
+**A corpus run also measures the RECONSTRUCTOR, not only the rule.** The
+`relative-binding-without-context` round found two model defects that had
+been invisible because they cancel each other out: a `DATA t_x TYPE
+ty_t_x.` (a **named** table type, not the inline `STANDARD TABLE OF`
+form) was modelled as a **scalar**, so the render gate silently rendered
+an empty aggregation and never instantiated the template — and fixing
+that surfaced the second one, an **unseeded** table being given an
+invented all-empty row, which the render gate then rejects on the first
+enum or date property (`"" is of type string, expected sap.m.AvatarShape`).
+Now: unseeded tables are empty for the renderer and a declared row in the
+shape, the same split the scalars already had.
 
 **Measure a new rule against the ai-demokit corpus before shipping it.**
 `node cli.mjs /path/to/ai-demokit/src --no-render --json` over 282 real

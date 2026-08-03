@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">25 error</span>
+      <span class="badge error">28 error</span>
       <span class="badge warning">11 warning</span>
-      <span class="badge hint">3 hint</span>
+      <span class="badge hint">4 hint</span>
       <span class="badge fix">3 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 39 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 43 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -327,6 +327,15 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         <p class="summary">an event nothing reacts to</p>
         <p class="detail">Usually a dead control — but in abap2UI5 an event also forces a roundtrip, and that alone synchronises the model back into ABAP. So this is a hint, never an error, and it is skipped entirely when handler names are not literals.</p>
       </article>
+      <article class="rule" id="frontend-action-unknown-id" data-search="frontend-action-unknown-id a control_by_id wire naming an id no view declares the frontend resolves the first t_arg as a control id. when no view of the class gives a control that id — a typo, a renamed control, an id that only ever existed in another app — the lookup fails, the frontend logs it and the wire does nothing: no exception, no failed render, a button that looks connected. judged only when every id attribute of the class is a literal; a class that builds ids at runtime is left alone. error">
+        <h3><a href="#frontend-action-unknown-id">frontend-action-unknown-id</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a <code>CONTROL_BY_ID</code> wire naming an id no view declares</p>
+        <p class="detail">The frontend resolves the first <code>t_arg</code> as a control id. When no view of the class gives a control that id — a typo, a renamed control, an id that only ever existed in another app — the lookup fails, the frontend logs it and the wire does <strong>nothing</strong>: no exception, no failed render, a button that looks connected. Judged only when every <code>id</code> attribute of the class is a literal; a class that builds ids at runtime is left alone.</p>
+        <pre><code>a( n = `id` v = `messageView` )
+" … follow_up_action( val = client-&gt;cs_event-control_by_id t_arg = VALUE #( ( `messageview` ) ( `navigateBack` ) ) )</code></pre>
+      </article>
       <article class="rule" id="invalid-frontend-action" data-search="invalid-frontend-action a frontend-action t_arg outside the set the runtime accepts a client-&gt;_event_client( ) / client-&gt;follow_up_action( ) wire is dispatched in the browser by name, and a name outside the whitelist raises nothing anywhere: frontendaction logs to the console and the control does nothing when pressed. judged only for literal arguments and only where the runtime's set is closed — the control_global object and its method, the binding_call method, and control_by_id's obsolete empty view slot (which shifts the method out of position). control_by_id's method list is open by design and is never judged. error">
         <h3><a href="#invalid-frontend-action">invalid-frontend-action</a>
           <span class="badge error">error</span>
@@ -344,6 +353,16 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         <p class="summary"><code>client-&gt;_bind_edit( )</code> — superseded by <code>client-&gt;_bind( )</code></p>
         <p class="detail"><code>_bind</code> is two-way as well. The one documented exception is a call passing <code>custom_mapper_back</code> or <code>custom_filter_back</code>, which <code>_bind</code> has no parameters for — such a call is not reported.</p>
         <p class="fixnote"><strong>--fix:</strong> Rewritten to <code>client-&gt;_bind( )</code>, the arguments untouched.</p>
+      </article>
+      <article class="rule" id="settable-property-via-action" data-search="settable-property-via-action a control_by_id set…( ) where the control has a bindable property of that name the project rule is prefer a bindable property over a frontend action: a two-way bound property keeps the state in the model, where it survives a view rebuild, a draft restore and the browser back button — a frontend action does not, and it also needs a round-trip to be re-applied. only properties are reported: an association (sap.uxap.objectpagelayout.selectedsection) and an aggregation cannot be data-bound at all, so driving those imperatively is the only way and is never flagged. a hint, not an error — an imperative call can still be the right answer when the sample's point is the imperative api itself. hint">
+        <h3><a href="#settable-property-via-action">settable-property-via-action</a>
+          <span class="badge hint">hint</span>
+        </h3>
+        <p class="summary">a <code>CONTROL_BY_ID</code> <code>set…( )</code> where the control has a bindable property of that name</p>
+        <p class="detail">The project rule is *prefer a bindable property over a frontend action*: a two-way bound property keeps the state in the model, where it survives a view rebuild, a draft restore and the browser Back button — a frontend action does not, and it also needs a round-trip to be re-applied. Only <strong>properties</strong> are reported: an association (<code>sap.uxap.ObjectPageLayout.selectedSection</code>) and an aggregation cannot be data-bound at all, so driving those imperatively is the only way and is never flagged. A hint, not an error — an imperative call can still be the right answer when the sample's point is the imperative API itself.</p>
+        <pre><code>follow_up_action( val = client-&gt;cs_event-control_by_id
+                  t_arg = VALUE #( ( `sideContent` ) ( `setShowSideContent` ) ( `true` ) ) )
+" -&gt; a( n = `showSideContent` v = client-&gt;_bind( show_side ) )</code></pre>
       </article>
       <article class="rule" id="unconverted-abap-boolean" data-search="unconverted-abap-boolean an abap boolean written straight into the view it arrives as 'x' or ' ', and ui5 reads any non-empty string as true — so visible = abap_false makes the control visible. the classic silent inversion. wrap it in z2ui5_cl_ai_xml=&gt;as_bool( ). error">
         <h3><a href="#unconverted-abap-boolean">unconverted-abap-boolean</a>
@@ -403,6 +422,14 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         <p class="summary">a table or structure bound to a scalar property</p>
         <p class="detail">The property receives an object where it expects a value. Nothing throws; the control shows nothing useful.</p>
       </article>
+      <article class="rule" id="date-type-without-source" data-search="date-type-without-source sap.ui.model.type.date / datetime / time without formatoptions.source without a source format option these types expect a js date instance in the model. an abap2ui5 model is json serialized from abap, so the value is always a string (or a timestamp number) and a date can never reach it — the type raises a formatexception on the first format() and the field stays empty, with nothing in the console for a text. add the source format the abap field actually carries, e.g. formatoptions: { source: { pattern: 'yyyy-mm-dd' } }. note the alias form is resolved through the view's core:require, so type: 'datetype' is judged like the full module name. error">
+        <h3><a href="#date-type-without-source">date-type-without-source</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary"><code>sap.ui.model.type.Date</code> / <code>DateTime</code> / <code>Time</code> without <code>formatOptions.source</code></p>
+        <p class="detail">Without a <code>source</code> format option these types expect a <strong>JS <code>Date</code> instance</strong> in the model. An abap2UI5 model is JSON serialized from ABAP, so the value is always a string (or a timestamp number) and a <code>Date</code> can never reach it — the type raises a <code>FormatException</code> on the first <code>format()</code> and the field stays empty, with nothing in the console for a <code>Text</code>. Add the source format the ABAP field actually carries, e.g. <code>formatOptions: { source: { pattern: 'yyyy-MM-dd' } }</code>. Note the alias form is resolved through the view's <code>core:require</code>, so <code>type: 'DateType'</code> is judged like the full module name.</p>
+        <pre><code>a( n = `text` v = |\{ path: '/DATE', type: 'DateType', formatOptions: \{ style: 'short' \} \}| )</code></pre>
+      </article>
       <article class="rule" id="missing-accessibility" data-search="missing-accessibility icon-only button without tooltip, image without alt the control is unusable with a screen reader. never wrong by itself, so it is a hint — switch it off per repo with "missing-accessibility": false if your corpus has made another decision. hint">
         <h3><a href="#missing-accessibility">missing-accessibility</a>
           <span class="badge hint">hint</span>
@@ -416,6 +443,15 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         </h3>
         <p class="summary">a <code>Table</code> bound to rows but given no <code>columns</code> — renders empty</p>
         <p class="detail">The control has data but not the aggregation it needs to show any of it. Nothing fails: the table renders, and it renders empty, which is the hardest kind of bug to see in a screenshot.</p>
+      </article>
+      <article class="rule" id="relative-binding-without-context" data-search="relative-binding-without-context a relative {field} on a control that has no binding context a relative binding is resolved against the control's binding context. inside a bound aggregation that context is the row; outside one there is none, and jsonmodel._getobject returns undefined — the control renders empty, with no error anywhere. this is the flattened-element-binding trap: the original did bindelement('/coll/0'), the port seeded that record at the model root and kept the relative {field}. bind the root field instead (client-&gt;_bind( field )). reported only when the name really is a field of the model root, so a per-row popup whose context arrives at runtime is not judged. error">
+        <h3><a href="#relative-binding-without-context">relative-binding-without-context</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a relative <code>{FIELD}</code> on a control that has no binding context</p>
+        <p class="detail">A relative binding is resolved against the control's binding context. Inside a bound aggregation that context is the row; outside one there is none, and <code>JSONModel._getObject</code> returns <code>undefined</code> — the control renders <strong>empty</strong>, with no error anywhere. This is the flattened-element-binding trap: the original did <code>bindElement('/Coll/0')</code>, the port seeded that record at the model root and kept the relative <code>{FIELD}</code>. Bind the root field instead (<code>client-&gt;_bind( field )</code>). Reported only when the name really is a field of the model root, so a per-row popup whose context arrives at runtime is not judged.</p>
+        <pre><code>a( n = `title` v = `{NAME}` )   " NAME is a root field -&gt; renders empty
+a( n = `title` v = client-&gt;_bind( name ) )</code></pre>
       </article>
     </section>
 
