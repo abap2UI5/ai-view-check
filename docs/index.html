@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">27 error</span>
+      <span class="badge error">28 error</span>
       <span class="badge warning">11 warning</span>
       <span class="badge hint">3 hint</span>
       <span class="badge fix">3 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 41 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 42 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -433,6 +433,15 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         </h3>
         <p class="summary">a <code>Table</code> bound to rows but given no <code>columns</code> — renders empty</p>
         <p class="detail">The control has data but not the aggregation it needs to show any of it. Nothing fails: the table renders, and it renders empty, which is the hardest kind of bug to see in a screenshot.</p>
+      </article>
+      <article class="rule" id="relative-binding-without-context" data-search="relative-binding-without-context a relative {field} on a control that has no binding context a relative binding is resolved against the control's binding context. inside a bound aggregation that context is the row; outside one there is none, and jsonmodel._getobject returns undefined — the control renders empty, with no error anywhere. this is the flattened-element-binding trap: the original did bindelement('/coll/0'), the port seeded that record at the model root and kept the relative {field}. bind the root field instead (client-&gt;_bind( field )). reported only when the name really is a field of the model root, so a per-row popup whose context arrives at runtime is not judged. error">
+        <h3><a href="#relative-binding-without-context">relative-binding-without-context</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a relative <code>{FIELD}</code> on a control that has no binding context</p>
+        <p class="detail">A relative binding is resolved against the control's binding context. Inside a bound aggregation that context is the row; outside one there is none, and <code>JSONModel._getObject</code> returns <code>undefined</code> — the control renders <strong>empty</strong>, with no error anywhere. This is the flattened-element-binding trap: the original did <code>bindElement('/Coll/0')</code>, the port seeded that record at the model root and kept the relative <code>{FIELD}</code>. Bind the root field instead (<code>client-&gt;_bind( field )</code>). Reported only when the name really is a field of the model root, so a per-row popup whose context arrives at runtime is not judged.</p>
+        <pre><code>a( n = `title` v = `{NAME}` )   " NAME is a root field -&gt; renders empty
+a( n = `title` v = client-&gt;_bind( name ) )</code></pre>
       </article>
     </section>
 

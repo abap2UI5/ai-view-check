@@ -490,6 +490,15 @@ ENDCLASS.`;
   assert(none.length === 0,
     `event-arg-out-of-range: an event the class does not raise, and a read in another method, are not judged (got ${none.length})`);
 
+  // --- a relative binding with no context to resolve against ----------------
+  const orphan = checkAbapSource(fs.readFileSync(f('orphanbind.clas.abap'), 'utf8'))
+    .findings.filter((x) => x.type === 'relative-binding-without-context');
+  assert(orphan.length === 1 && orphan[0].value === 'NAME',
+    `relative-binding-without-context: only the contextless root field is reported (got ${orphan.map((x) => x.value).join() || 'none'})`);
+  assert(!checkAbapSource(fs.readFileSync(f('rowpaths.clas.abap'), 'utf8'))
+    .findings.some((x) => x.type === 'relative-binding-without-context'),
+    'relative-binding-without-context: a relative binding inside a bound aggregation is not judged');
+
   // --- CONTROL_BY_ID against the ids the class actually declares ------------
   const ids = checkAbapRules(fs.readFileSync(f('actionid.clas.abap'), 'utf8'))
     .filter((x) => x.type === 'frontend-action-unknown-id');

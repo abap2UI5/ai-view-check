@@ -47,6 +47,12 @@ every PR, and the same thing runs locally against sibling checkouts:
   teach the reconstructor a second builder.
 - The knowledge bound is the committed metadata snapshot (see below): the
   gate cannot know about anything newer than its `ui5Version`.
+- **One builder chain per document.** The reconstructor reads a chain as one
+  ABAP statement; a chain **split across statements on the same handle**
+  (`popover->open( … ).` then `popover->open( \`List\` )`) keeps its cursor at
+  runtime but is re-rooted here, so the document comes out with two roots.
+  It fails loudly (the render gate rejects it as native HTML content) rather
+  than silently — but the fix is in the port: write one chain per view.
 
 ## Rule taxonomy — where each finding type is emitted
 
@@ -142,6 +148,7 @@ worked off**; every entry shipped:
 | Unbound PUBLIC attribute | `unused-public-attribute` |
 | Date/time model type without a `source` format | `date-type-without-source` |
 | `CONTROL_BY_ID` naming an id no view declares | `frontend-action-unknown-id` |
+| Relative binding on a control with no binding context | `relative-binding-without-context` |
 
 The last one shipped **narrower than it was written**: "no view binds it" is
 not the same as dead. A PUBLIC attribute used only in ABAP code is state, not
@@ -163,6 +170,18 @@ is silent in exactly the way the whole rule family exists for. It is
 deliberately narrow — the id set is trusted only when EVERY `id`
 attribute of the class is a literal, so a class that builds ids at
 runtime is not judged at all.
+
+`relative-binding-without-context` closes the **flattened-element-binding**
+trap the ai-demokit porting guide could until now only describe as a manual
+audit ("a `_bind`-less `` v = `{FIELD}` `` whose FIELD is a root-level DATA
+scalar") — seven of its ports had shipped the wrong form. It needed a third
+view of the class: the model and the shape only carry BOUND variables, so
+`prepareAbap` now also returns `rootFields`, every attribute the class
+declares. And it is the textbook case for the corpus rule below — the first
+version reported four bindings in `sap.ui.table` **column templates**, which
+are cloned per row and get their context from the table's `rows` binding in a
+sibling aggregation. The corpus was right; the rule now treats any
+`template` aggregation as a row context.
 
 New candidates go here as they are found. Two rules of the trade the last
 rounds established, before anything is added:

@@ -183,6 +183,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'obsolete-binder' — default severity: warning"
         },
+        "relative-binding-without-context": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'relative-binding-without-context' — default severity: error"
+        },
         "sapui5-only-control": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'sapui5-only-control' — default severity: error"
