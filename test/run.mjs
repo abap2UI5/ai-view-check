@@ -583,6 +583,10 @@ ENDCLASS.`;
   const { ACTION_ARGS, GLOBAL_TARGETS } = await import('../lib/frontend-actions.mjs');
   assert(Object.keys(ACTION_ARGS).every((a) => a === a.toLowerCase()) && GLOBAL_TARGETS.MESSAGE_TOAST.includes('show'),
     'invalid-frontend-action: the catalog is keyed by the cs_event constant name');
+  assert(checkAbapRules('client->follow_up_action( val = client->cs_event-control_global '
+    + 't_arg = VALUE #( ( `POPUP` ) ( `setWithinArea` ) ( `withinArea` ) ) ).')
+    .filter((x) => x.type === 'invalid-frontend-action').length === 0,
+    'invalid-frontend-action: POPUP.setWithinArea is a known global (abap2UI5 CONTROL_GLOBAL target)');
 
   const css = wire.findings.filter((x) => x.type === 'unescaped-brace-in-style');
   assert(css.length === 1 && css[0].count === 2,

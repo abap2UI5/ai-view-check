@@ -95,7 +95,11 @@ the closed whitelists `invalid-frontend-action` judges against. Its source of
 truth is abap2UI5's `z2ui5_cl_app_frontendaction_js` — a JavaScript module
 embedded in an ABAP string concatenation, which is not worth parsing, and
 that repo is not a dependency here. Refresh it by reading `GLOBAL_TARGETS`
-and `BINDING_METHODS` there. Only **closed** sets belong in it: `CONTROL_BY_ID`
+and `BINDING_METHODS` there. Kept in step 2026-08-02 with abap2UI5's new
+`POPUP: setWithinArea` target (`sap.ui.core.Popup.setWithinArea`, @since
+1.89) — a target added upstream is a **silent** breaking change here until
+this file follows: the linter reports the correct new wire as an
+`invalid-frontend-action`. Only **closed** sets belong in it: `CONTROL_BY_ID`
 accepts any control method that does not match a deny prefix, so a whitelist
 for it would report correct code.
 
