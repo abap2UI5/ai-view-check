@@ -15,7 +15,9 @@
     "./abap-rules": "./lib/abap-rules.mjs",
     "./findings": "./lib/findings.mjs",
     "./config": "./lib/config.mjs",
+    "./baseline": "./lib/baseline.mjs",
     "./report": "./lib/report.mjs",
+    "./formatters": "./lib/formatters.mjs",
     "./schema": "./data/abap2ui5lint.schema.json"
   },
   "files": [
