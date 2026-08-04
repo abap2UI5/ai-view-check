@@ -71,6 +71,10 @@ export function buildSchema() {
         enum: [...SEVERITIES, 'never'],
         description: 'Lowest severity that fails the build. Everything is always reported — this only decides the exit code.',
       },
+      baseline: {
+        type: 'string',
+        description: 'Path (relative to this config) of the baseline file: findings frozen at adoption time are suppressed, new findings fail, a stale entry fails too. Create/refresh it with --update-baseline.',
+      },
       rules: {
         type: 'object',
         additionalProperties: false,

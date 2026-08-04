@@ -21,7 +21,7 @@ CLASS zcl_fixture_nested DEFINITION PUBLIC.
         elements TYPE ty_t_element,
       END OF ty_s_row.
 
-  PRIVATE SECTION.
+    " PUBLIC: only public attributes are serialized into the model (binding-to-nonpublic)
     DATA t_rows TYPE STANDARD TABLE OF ty_s_row.
 ENDCLASS.
 

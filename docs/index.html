@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">31 error</span>
-      <span class="badge warning">14 warning</span>
+      <span class="badge error">32 error</span>
+      <span class="badge warning">17 warning</span>
       <span class="badge hint">5 hint</span>
-      <span class="badge fix">4 autofixable</span>
+      <span class="badge fix">5 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 50 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 54 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -227,14 +227,23 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
       <article class="rule" id="undeclared-namespace" data-search="undeclared-namespace ns = 'form' without an xmlns:form the prefix is used but never declared on the view root, so the parser cannot resolve the control at all. error">
         <h3><a href="#undeclared-namespace">undeclared-namespace</a>
           <span class="badge error">error</span>
+          <span class="badge fix">--fix</span>
         </h3>
         <p class="summary"><code>ns = 'form'</code> without an <code>xmlns:form</code></p>
         <p class="detail">The prefix is used but never declared on the view root, so the parser cannot resolve the control at all.</p>
+        <p class="fixnote"><strong>--fix:</strong> For the conventional prefixes (<code>core</code>, <code>mvc</code>, <code>l</code>/<code>layout</code>, <code>form</code>, <code>f</code>, <code>table</code>, <code>u</code>/<code>unified</code>, <code>uxap</code>, <code>tnt</code>, <code>html</code>, <code>cc</code>) the missing declaration is inserted next to the root's first <code>xmlns</code> write; an unconventional prefix could mean any library and is left alone.</p>
       </article>
     </section>
     <section class="cat" id="cat-version">
       <h2>Version and deprecation</h2>
       <p class="blurb">Portability against the UI5 version your system actually runs (--ui5, default 1.71) and the distribution it serves (--distribution).</p>
+      <article class="rule" id="commercial-ui5-host" data-search="commercial-ui5-host a url pinned to the commercial sapui5 host the same portability family as sapui5-only-control: sdk.openui5.org serves the open distribution, ui5.sap.com / .hana.ondemand.com serve sapui5. an app whose assets or bootstrap point at the commercial host breaks the moment it runs against an openui5-only landscape. warning">
+        <h3><a href="#commercial-ui5-host">commercial-ui5-host</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">a URL pinned to the commercial SAPUI5 host</p>
+        <p class="detail">The same portability family as <code>sapui5-only-control</code>: <code>sdk.openui5.org</code> serves the open distribution, <code>ui5.sap.com</code> / <code>*.hana.ondemand.com</code> serve SAPUI5. An app whose assets or bootstrap point at the commercial host breaks the moment it runs against an OpenUI5-only landscape.</p>
+      </article>
       <article class="rule" id="control-deprecated" data-search="control-deprecated control already deprecated at your target version reported only once the deprecation is in effect at the version you target — a control deprecated as of 1.149 stays silent for a 1.71 target. warning">
         <h3><a href="#control-deprecated">control-deprecated</a>
           <span class="badge warning">warning</span>
@@ -248,6 +257,14 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
         </h3>
         <p class="summary">control introduced after your target UI5 version</p>
         <p class="detail">The control does not exist on the system you are targeting (<code>--ui5</code>, default 1.71), so the view will not load there — however well it works on a newer one. Waive a deliberate case with <code>--allow sap.m.Control</code>.</p>
+      </article>
+      <article class="rule" id="enum-value-too-new" data-search="enum-value-too-new an enum value introduced after your target version the property predates version tracking, the type is old — but the specific value is not: sap.m.buttontype.critical is @since 1.73 on a property that existed forever. the member-level @since sits on the property, never on the value, so this was invisible to every gate (and a documented manual-check burden downstream). the snapshot now keeps the per-value @since from the enum's jsdoc; a value without one predates version tracking and stays silent. waive a deliberate case with --allow sap.m.control.member, like the other floor rules. warning">
+        <h3><a href="#enum-value-too-new">enum-value-too-new</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">an enum VALUE introduced after your target version</p>
+        <p class="detail">The property predates version tracking, the type is old — but the specific value is not: <code>sap.m.ButtonType.Critical</code> is @since 1.73 on a property that existed forever. The member-level <code>@since</code> sits on the property, never on the value, so this was invisible to every gate (and a documented manual-check burden downstream). The snapshot now keeps the per-value <code>@since</code> from the enum's JSDoc; a value without one predates version tracking and stays silent. Waive a deliberate case with <code>--allow sap.m.Control.member</code>, like the other floor rules.</p>
+        <pre><code>view-&gt;leaf( `Button` )-&gt;a( n = `type` v = `Critical` )  " @since 1.73 on a 1.71 target</code></pre>
       </article>
       <article class="rule" id="event-parameter-too-new" data-search="event-parameter-too-new a ${$parameters&gt;/name} the event only gained later an event parameter read back in a t_arg that the event did not carry yet at your floor. resolved per event, not per parameter name, so an identically named parameter on another event does not mask it. warning">
         <h3><a href="#event-parameter-too-new">event-parameter-too-new</a>
@@ -294,6 +311,16 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
         </h3>
         <p class="summary">a local variable bound</p>
         <p class="detail">The instance is serialized across the roundtrip, the method stack is not — so the value is gone when the answer comes back. Bind an instance attribute.</p>
+      </article>
+      <article class="rule" id="binding-to-nonpublic" data-search="binding-to-nonpublic a protected/private attribute bound only public attributes are serialized into the model (z2ui5_cl_core_srv_model filters on visibility), so binding one from another section fails the first roundtrip with binding_error — no class attribute for binding found. move the attribute to the public section. judged by the root of the bound name (a structure component travels with its root), and only when the class declares a public section to compare against. found live: an ai-demokit port bound expanded from its protected section and had never worked in a running system — its live_test deviation was telling the truth the whole time. error">
+        <h3><a href="#binding-to-nonpublic">binding-to-nonpublic</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a PROTECTED/PRIVATE attribute bound</p>
+        <p class="detail">Only PUBLIC attributes are serialized into the model (<code>z2ui5_cl_core_srv_model</code> filters on visibility), so binding one from another section fails the <strong>first roundtrip</strong> with <code>BINDING_ERROR — No class attribute for binding found</code>. Move the attribute to the <code>PUBLIC SECTION</code>. Judged by the root of the bound name (a structure component travels with its root), and only when the class declares a <code>PUBLIC SECTION</code> to compare against. Found live: an ai-demokit port bound <code>expanded</code> from its PROTECTED section and had never worked in a running system — its <code>LIVE_TEST</code> deviation was telling the truth the whole time.</p>
+        <pre><code>PROTECTED SECTION.
+  DATA expanded TYPE abap_bool.   " BINDING_ERROR on the first roundtrip
+" … )-&gt;a( n = `expanded` v = client-&gt;_bind( expanded ) )</code></pre>
       </article>
       <article class="rule" id="collapsed-brace-in-style" data-search="collapsed-brace-in-style an escaped css brace written inside a |…| template an escape only reaches the serialized attribute when the backslash is taken verbatim, which is what a backtick literal does. inside an abap string template the backslash is the template's own escape: \{ collapses to a bare { before the builder ever sees it, and the view dies exactly as if nothing had been escaped. write the stylesheet in a backtick literal — or, if it has to be a template, double the backslash (\\\{). invisible to unescaped-brace-in-style, which reads the source and sees a backslash in front of every brace; only the literal's kind tells the two apart. error">
         <h3><a href="#collapsed-brace-in-style">collapsed-brace-in-style</a>
@@ -421,6 +448,13 @@ ENDIF.</code></pre>
         <pre><code>follow_up_action( val = client-&gt;cs_event-control_by_id
                   t_arg = VALUE #( ( `sideContent` ) ( `setShowSideContent` ) ( `true` ) ) )
 " -&gt; a( n = `showSideContent` v = client-&gt;_bind( show_side ) )</code></pre>
+      </article>
+      <article class="rule" id="ui5-internal-access" data-search="ui5-internal-access mproperties &amp; friends — private ui5 internals the mproperties/maggregations/mbindinginfos/meventregistry member tables are ui5 implementation details with no api contract — they are renamed or restructured across ui5 patches without notice, so a wire or expression that reads them works on the version it was written against and breaks silently on the next one. restructure to a two-way binding or a public parameter. warning">
+        <h3><a href="#ui5-internal-access">ui5-internal-access</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary"><code>mProperties</code> &amp; friends — private UI5 internals</p>
+        <p class="detail">The <code>mProperties</code>/<code>mAggregations</code>/<code>mBindingInfos</code>/<code>mEventRegistry</code> member tables are UI5 implementation details with no API contract — they are renamed or restructured across UI5 patches without notice, so a wire or expression that reads them works on the version it was written against and breaks silently on the next one. Restructure to a two-way binding or a public parameter.</p>
       </article>
       <article class="rule" id="unconverted-abap-boolean" data-search="unconverted-abap-boolean an abap boolean written straight into the view it arrives as 'x' or ' ', and ui5 reads any non-empty string as true — so visible = abap_false makes the control visible. the classic silent inversion. wrap it in z2ui5_cl_ai_xml=&gt;as_bool( ). error">
         <h3><a href="#unconverted-abap-boolean">unconverted-abap-boolean</a>

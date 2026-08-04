@@ -1,0 +1,53 @@
+name: upstream-sync
+
+# Drift gate for the two HAND-MAINTAINED knowledge files: lib/formatters.mjs
+# mirrors abap2UI5's curated formatter module, lib/frontend-actions.mjs
+# mirrors the GLOBAL_TARGETS of its embedded FrontendAction JS. Upstream is
+# not a dependency, so a change there is silent here until a user hits it —
+# a new CONTROL_GLOBAL target makes the linter report correct new code
+# (that is exactly how POPUP.setWithinArea arrived), a removed formatter
+# makes the render harness pass views that break live. Weekly, and an issue
+# instead of a red run nobody opens.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * 1'   # weekly, Mon 06:23 UTC (offset from bump-linter runs elsewhere)
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Compare the mirrors against upstream main
+        id: check
+        run: node scripts/check-upstream.mjs | tee drift.txt
+      - name: Open or update the drift issue
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -e
+          title="hand-maintained knowledge files drifted from abap2UI5"
+          body="scripts/check-upstream.mjs found drift between lib/formatters.mjs / lib/frontend-actions.mjs and the abap2UI5 sources: ${RUN_URL}
+
+          \`\`\`
+          $(cat drift.txt 2>/dev/null || echo 'see the run log')
+          \`\`\`
+
+          Update the mirror (and its tests/fixtures) in one change — see the header of each file for the contract. This issue is updated by each drifted weekly run; close it when the run is green again."
+          existing=$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "Still drifted: ${RUN_URL}"
+          else
+            gh issue create --title "$title" --body "$body"
+          fi

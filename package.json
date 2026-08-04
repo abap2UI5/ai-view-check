@@ -30,6 +30,7 @@
     "check": "node cli.mjs",
     "test": "node test/run.mjs",
     "generate-metadata": "node scripts/generate-metadata.mjs",
+    "check-upstream": "node scripts/check-upstream.mjs",
     "generate-schema": "node scripts/generate-schema.mjs",
     "generate-rules-page": "node scripts/generate-rules-page.mjs"
   },

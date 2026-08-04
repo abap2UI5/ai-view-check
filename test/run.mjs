@@ -246,7 +246,6 @@ ENDCLASS.`);
 const opaque = `CLASS zcl_x DEFINITION PUBLIC.
   PUBLIC SECTION.
     INTERFACES z2ui5_if_app.
-  PRIVATE SECTION.
     DATA t_flights TYPE STANDARD TABLE OF sflight.
 ENDCLASS.
 CLASS zcl_x IMPLEMENTATION.
@@ -826,6 +825,196 @@ ENDCLASS.`;
   const mirrored = [...renderSrc.matchAll(/^ {6}(\w+): function/gm)].map((m) => m[1]);
   assert(mirrored.sort().join() === [...CURATED_FORMATTERS].sort().join(),
     `formatters: the render harness mirrors exactly the curated set (harness: ${mirrored.join(', ') || 'none'})`);
+}
+
+// ------------------------------------------------ round 2: new rules ----
+{
+  const { checkAbapRules } = await import('../lib/abap-rules.mjs');
+
+  // --- binding-to-nonpublic: the app-043 failure class ----------------------
+  const nonpublic = `CLASS zcl_x DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES z2ui5_if_app.
+    DATA title TYPE string.
+  PROTECTED SECTION.
+    DATA expanded TYPE abap_bool.
+ENDCLASS.
+CLASS zcl_x IMPLEMENTATION.
+  METHOD z2ui5_if_app~main.
+    DATA(lv_tmp) = \`x\`.
+    DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+    v->open( n = \`View\` ns = \`mvc\` )->a( n = \`xmlns\` v = \`sap.m\` )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+      )->open( \`Panel\`
+        )->a( n = \`headerText\` v = client->_bind( title )
+        )->a( n = \`expanded\`   v = client->_bind( expanded ) ).
+    client->view_display( v->stringify( ) ).
+  ENDMETHOD.
+ENDCLASS.`;
+  const np = checkAbapRules(nonpublic).filter((x) => x.type === 'binding-to-nonpublic');
+  assert(np.length === 1 && np[0].member === 'expanded',
+    `binding-to-nonpublic: a PROTECTED attribute bound is reported, a PUBLIC one is not (got ${np.map((x) => x.member).join() || 'none'})`);
+  assert(!checkAbapRules(fs.readFileSync(f('abaprules.clas.abap'), 'utf8'))
+    .some((x) => x.type === 'binding-to-nonpublic'),
+    'binding-to-nonpublic: a bound LOCAL stays binding-to-local, never nonpublic');
+
+  // --- private UI5 internals + the commercial host --------------------------
+  const internals = checkAbapRules('lv_js = `oControl.mProperties.text` && `sap.ui.getCore()`.');
+  assert(internals.some((x) => x.type === 'ui5-internal-access' && x.value === 'mProperties'),
+    'ui5-internal-access: reading mProperties is reported');
+  assert(checkAbapRules('client->_event( `X` ).').every((x) => x.type !== 'ui5-internal-access'),
+    'ui5-internal-access: a class without internals access is silent');
+  const host = checkAbapRules('url = `https://ui5.sap.com/resources/sap-ui-core.js`.');
+  assert(host.some((x) => x.type === 'commercial-ui5-host' && x.value === 'ui5.sap.com'),
+    'commercial-ui5-host: the commercial host is reported');
+  assert(!checkAbapRules('url = `https://sdk.openui5.org/resources/sap-ui-core.js`.')
+    .some((x) => x.type === 'commercial-ui5-host'),
+    'commercial-ui5-host: sdk.openui5.org is the sanctioned host');
+
+  // --- enum VALUES carry their own @since now -------------------------------
+  const critical = (minUi5) => checkAbapSource(view('  )->leaf( `Button` )->a( n = `type` v = `Critical` )'), { minUi5 })
+    .findings.filter((x) => x.type === 'enum-value-too-new');
+  assert(critical('1.71').length === 1 && critical('1.71')[0].since === '1.73',
+    `enum-value-too-new: ButtonType.Critical (@1.73) is reported on a 1.71 target (got ${critical('1.71').map((x) => x.since).join() || 'none'})`);
+  assert(!critical('1.150').length,
+    'enum-value-too-new: the same value is fine once the target reaches its @since');
+  assert(!checkAbapSource(view('  )->leaf( `Button` )->a( n = `type` v = `Emphasized` )'))
+    .findings.some((x) => x.type === 'enum-value-too-new'),
+    'enum-value-too-new: a value that predates version tracking is never reported');
+
+  // --- absolute paths inside complex bindings and expressions ---------------
+  const complexSrc = (value) => `CLASS zcl_x DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES z2ui5_if_app.
+    TYPES: BEGIN OF ty_s_row, text TYPE string, END OF ty_s_row.
+    DATA t_x TYPE STANDARD TABLE OF ty_s_row.
+    DATA name TYPE string.
+ENDCLASS.
+CLASS zcl_x IMPLEMENTATION.
+  METHOD z2ui5_if_app~main.
+    t_x = VALUE #( ( text = \`a\` ) ).
+    name = \`n\`.
+    DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+    v->open( n = \`View\` ns = \`mvc\` )->a( n = \`xmlns\` v = \`sap.m\` )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+      )->open( \`List\` )->a( n = \`items\` v = client->_bind( t_x )
+      )->a( n = \`tooltip\` v = client->_bind( name )
+      )->leaf( \`Text\` )->a( n = \`text\` v = ${value} ).
+    client->view_display( v->stringify( ) ).
+  ENDMETHOD.
+ENDCLASS.`;
+  const complexPaths = (value) => checkAbapSource(complexSrc(value))
+    .findings.filter((x) => x.type === 'unknown-binding-path');
+  assert(complexPaths('|\\{ path: \'/TYPO\', type: \'sap.ui.model.type.String\' \\}|').some((x) => x.value === '/TYPO'),
+    'complex paths: a hardcoded absolute path in a binding info is existence-checked now');
+  assert(complexPaths('`{= ${/NOPE} + 1 }`').some((x) => x.value === '/NOPE'),
+    'complex paths: an absolute path inside an expression binding too');
+  assert(!complexPaths('`{= ${/T_X/9/TEXT} }`').length,
+    'complex paths: a numeric row index steps into the array — the corpus false positive');
+  assert(!complexPaths('|\\{ path: \'/NAME\' \\}|').length,
+    'complex paths: a path the model has is not reported');
+
+  // --- undeclared-namespace gained a fix for conventional prefixes ----------
+  const { applyFixes } = await import('../lib/fix.mjs');
+  const nsSrc = `
+  DATA(v) = z2ui5_cl_ai_xml=>factory( ).
+  v->open( n = \`View\` ns = \`mvc\`
+      )->a( n = \`xmlns\`     v = \`sap.m\`
+      )->a( n = \`xmlns:mvc\` v = \`sap.ui.core.mvc\`
+      )->leaf( n = \`Icon\` ns = \`core\` )->a( n = \`src\` v = \`sap-icon://add\` ).
+  client->view_display( v->stringify( ) ).`;
+  const nsFinding = checkAbapSource(nsSrc).findings.find((x) => x.type === 'undeclared-namespace');
+  assert(nsFinding?.fixes?.length === 1,
+    'undeclared-namespace: a conventional prefix carries a fix');
+  assert(/->a\( n = `xmlns:core` v = `sap\.ui\.core` \)->a\( n = `xmlns`/.test(applyFixes(nsSrc, [nsFinding]).output),
+    'undeclared-namespace: the fix inserts the declaration next to the root\'s first xmlns write');
+  const vrNs = checkAbapSource(fs.readFileSync(f('viewrules.clas.abap'), 'utf8'))
+    .findings.find((x) => x.type === 'undeclared-namespace');
+  assert(vrNs && !vrNs.fixes,
+    'undeclared-namespace: an unconventional prefix could mean any library and gets no fix');
+}
+
+// ------------------------------------------------ sarif + baseline + cli ----
+{
+  const cp = await import('node:child_process');
+  const os = await import('node:os');
+  const CLI = path.join(FIX, '..', '..', 'cli.mjs');
+  const run = (args, env = {}) => {
+    try {
+      return { out: cp.execFileSync('node', [CLI, ...args], { encoding: 'utf8', env: { ...process.env, NO_COLOR: '1', GITHUB_ACTIONS: '', ...env } }), code: 0 };
+    } catch (e) { return { out: e.stdout ?? '', code: e.status }; }
+  };
+
+  // --- sarif ----------------------------------------------------------------
+  const sarif = JSON.parse(run([f('viewrules.clas.abap'), '--no-render', '--format', 'sarif'], { GITHUB_ACTIONS: 'true' }).out);
+  assert(sarif.version === '2.1.0' && sarif.runs[0].tool.driver.name === 'abap2ui5-linter',
+    'sarif: a parseable 2.1.0 log, even inside GitHub Actions (no annotations join it)');
+  assert(sarif.runs[0].results.some((r) => r.ruleId === 'duplicate-id' && r.level === 'error')
+    && sarif.runs[0].results.some((r) => r.level === 'note'),
+    'sarif: severities map to error/warning/note and every result carries its rule id');
+  assert(sarif.runs[0].tool.driver.rules.every((r) => r.helpUri.includes(`#${r.id}`)),
+    'sarif: every rule links to its anchor on the rules page');
+
+  // --- baseline -------------------------------------------------------------
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'a2ui5base-'));
+  const target = path.join(dir, 'abaprules.clas.abap');
+  fs.copyFileSync(f('abaprules.clas.abap'), target);
+  const bl = path.join(dir, 'abap2ui5lint-baseline.json');
+
+  assert(run([target, '--no-render', '--baseline', bl, '--update-baseline']).code === 0
+    && fs.existsSync(bl),
+    'baseline: --update-baseline freezes the current findings and exits 0');
+  const adopted = run([target, '--no-render', '--baseline', bl]);
+  assert(adopted.code === 0 && /suppressed by/.test(adopted.out),
+    `baseline: a run over unchanged findings is green and says what it suppressed (exit ${adopted.code})`);
+
+  const withNew = fs.readFileSync(target, 'utf8')
+    .replace('client->view_display', 'client->popover_display( val = view->stringify( ) ).\n    client->view_display');
+  fs.writeFileSync(target, withNew);
+  const newFinding = run([target, '--no-render', '--baseline', bl]);
+  assert(newFinding.code === 1 && /popover-display-val/.test(newFinding.out)
+    && !/obsolete-binder/.test(newFinding.out.split('\n').filter((l) => /error|warning/.test(l)).join('\n')),
+    'baseline: a NEW finding fails while the frozen ones stay suppressed');
+
+  fs.copyFileSync(f('good.clas.abap'), target);
+  const stale = run([target, '--no-render', '--baseline', bl]);
+  assert(stale.code === 1 && /STALE/.test(stale.out),
+    'baseline: an entry whose finding is gone is stale and FAILS — a suppression never outlives its finding');
+
+  // --- --fix-dry-run --------------------------------------------------------
+  fs.copyFileSync(f('abaprules.clas.abap'), target);
+  const before = fs.readFileSync(target, 'utf8');
+  assert(/would fix/.test(run([target, '--no-render', '--fix-dry-run']).out)
+    && fs.readFileSync(target, 'utf8') === before,
+    'fix: --fix-dry-run reports without writing (the env variable keeps working too)');
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
+// ------------------------------------------------- upstream mirror parsers ----
+{
+  const { embeddedJs, parseGlobalTargets, parseFormatterExports } = await import('../scripts/check-upstream.mjs');
+  const abap = 'x = `const GLOBAL_TARGETS = {` && |\\n| &&\n'
+    + '`  ONE_LINER: { get: () => X, methods: { show: ["string"] } },` && |\\n| &&\n'
+    + '`  MULTI: {` && |\\n| && `    get: () => Y,` && |\\n| && `    methods: {` && |\\n| &&\n'
+    + '`      a: ["int"],` && |\\n| && `      b: [],` && |\\n| && `    },` && |\\n| && `  },` && |\\n| && `};`.';
+  const targets = parseGlobalTargets(abap);
+  assert(targets.ONE_LINER?.join() === 'show' && targets.MULTI?.join() === 'a,b',
+    `upstream: GLOBAL_TARGETS parses one-line and multi-line entries (got ${JSON.stringify(targets)})`);
+  assert(embeddedJs('a = `line1` && |\\n| && `line2`.').includes('line1\nline2'),
+    'upstream: the embedded JS is reassembled from the backtick literals');
+  assert(parseFormatterExports('  return {\n    DateCreateObject(s) {\n      return s;\n    },\n    expandInlineIcons(text) {},\n  };').join() === 'DateCreateObject,expandInlineIcons',
+    'upstream: the formatter export surface parses');
+}
+
+// ------------------------------------------------- metadata drift gate ----
+// generate-metadata --check took ~3 minutes before the extend-scan fix and
+// lived in its own CI step; at ~2 seconds it belongs in the suite
+{
+  const cp = await import('node:child_process');
+  let ok = true;
+  let msg = '';
+  try {
+    cp.execFileSync('node', [path.join(FIX, '..', '..', 'scripts', 'generate-metadata.mjs'), '--check'], { encoding: 'utf8' });
+  } catch (e) { ok = false; msg = (e.stderr || e.stdout || '').trim(); }
+  assert(ok, `metadata: data/properties.json is in sync — npm run generate-metadata (${msg})`);
 }
 
 // ------------------------------------------------------------------- fix ----

@@ -10,7 +10,7 @@ CLASS zcl_fixture_rowpaths DEFINITION PUBLIC.
         seatsmax TYPE i,
       END OF ty_s_row.
 
-  PRIVATE SECTION.
+    " PUBLIC: only public attributes are serialized into the model (binding-to-nonpublic)
     DATA t_flights TYPE STANDARD TABLE OF ty_s_row.
 ENDCLASS.
 

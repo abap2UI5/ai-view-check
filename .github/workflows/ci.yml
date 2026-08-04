@@ -12,8 +12,6 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npx playwright install chromium --with-deps
+      # npm test includes the metadata drift gate (generate-metadata --check):
+      # ~2s since the extend-scan fix, so it no longer needs its own step
       - run: npm test
-      # the metadata drift gate: a change to generate-metadata.mjs without a
-      # regenerated data/properties.json must not merge silently. Its own CI
-      # step (not part of npm test) because the full parse takes ~3 minutes.
-      - run: npm run generate-metadata -- --check

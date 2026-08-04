@@ -90,7 +90,13 @@ npm run generate-schema      # data/abap2ui5lint.schema.json
 npm run generate-rules-page  # docs/index.html
 ```
 
-`lib/frontend-actions.mjs` is the one **hand-maintained** knowledge file:
+`lib/frontend-actions.mjs` and `lib/formatters.mjs` are the two
+**hand-maintained** knowledge files, and both are watched by
+`scripts/check-upstream.mjs` (weekly via `upstream-sync.yml`, on drift an
+issue): it re-derives the curated formatter exports and the `GLOBAL_TARGETS`
+map from the abap2UI5 sources and fails on any difference — so an upstream
+change becomes an issue here instead of a silent false positive at some
+user's desk. On `lib/frontend-actions.mjs` in detail:
 the closed whitelists `invalid-frontend-action` judges against. Its source of
 truth is abap2UI5's `z2ui5_cl_app_frontendaction_js` — a JavaScript module
 embedded in an ABAP string concatenation, which is not worth parsing, and
@@ -215,6 +221,23 @@ one repo's gate script:
 The corpus rules stay in pattern-lint only where they encode CORPUS policy
 (method order, formatting, sidecar headers) — those do not belong here.
 
+The second 2026-08-04 round added, each corpus-measured first:
+
+| Origin | Rule |
+| --- | --- |
+| ai-demokit app 043's live BINDING_ERROR (found by the e2e interaction that closed its LIVE_TEST) | `binding-to-nonpublic` — only PUBLIC attributes are serialized, a bound PROTECTED one fails the first roundtrip |
+| ai-demokit's documented residual gap ("enum values newer than 1.71 are invisible") | `enum-value-too-new` + the generator's `enumSince` map — its first corpus run confirmed the two hand-written POST_171 declarations on app 028 (`GenericTile frameType` OneByHalf/TwoByHalf @1.83) |
+| the last two generic pattern-lint rules | `ui5-internal-access` (mProperties & friends), `commercial-ui5-host` |
+| `hardcoded-binding-path` said "don't", nothing said "does it exist" | `unknown-binding-path` now also judges `path: '/X'` in complex binding infos and `${/X}` in expressions — the first corpus run found the row-index trap (`/T_ITEMS/9/TEXT` is legal; numeric segments now step into the bound table's row) |
+
+Also in that round: `undeclared-namespace` gained a `--fix` for the
+conventional prefixes, `--format sarif`, the adoption **baseline**
+(`--update-baseline`, stale entries FAIL), a page POOL in the render gate
+(`openRenderer({ pages })`, `checkFiles` uses 4 — the corpus render wall
+clock divides accordingly), and `scripts/check-upstream.mjs` +
+`upstream-sync.yml`, the weekly drift gate for the two hand-maintained
+knowledge files below.
+
 New candidates go here as they are found. Two rules of the trade the last
 rounds established, before anything is added:
 
@@ -256,13 +279,13 @@ enums) is generated from the installed `@openui5/*` packages (or
 npm run generate-metadata
 ```
 
-Regenerate it **only** when bumping the `@openui5/*` pins in `package.json`,
-and commit both together. The CI drift gate
-(`npm run generate-metadata -- --check`, its own ~3-minute step in
-`ci.yml`, not part of `npm test`) fails a change to `generate-metadata.mjs`
-that ships without a regenerate — the one committed artefact that used to
-have no such gate. The snapshot's version bounds what the gate can know
-(reasoning in the README).
+Regenerate it **only** when bumping the `@openui5/*` pins in `package.json`
+(or when the generator itself changes shape), and commit both together. The
+drift gate (`generate-metadata --check`) runs **inside `npm test`**: the
+generation dropped from ~3 minutes to ~2 seconds when the unanchored
+`(\w+)\.extend\(` scan — 167 of those 172 seconds — was replaced by a
+literal-anchored one (`extendHits`). The snapshot's version bounds what the
+gate can know (reasoning in the README).
 
 **The generator is published with the package** (`files[]`) and takes
 `--out <file>`, because it is the ecosystem's ONLY UI5 metadata parser.

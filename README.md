@@ -20,6 +20,7 @@ Two gates:
    | `too-many-children` | two controls in a 0..1 aggregation |
    | `invalid-aggregation-child` | a control the aggregation's type does not accept |
    | `control-too-new` / `member-too-new` | introduced after your target UI5 version (default **1.71**) |
+   | `enum-value-too-new` | the property is old, the VALUE is not — `GenericTile frameType="OneByHalf"` is @since 1.83 on a 1.71 target; the snapshot keeps the per-value `@since` from the enum's JSDoc |
    | `event-parameter-too-new` | a `${$parameters>/name}` read back in a `t_arg` that the event only gained later — resolved per event, not per name |
    | `unknown-event-parameter` | a `${$parameters>/typo}` the event does not declare — the value usually arrives **empty**. Judged only against an event the control declares itself; a hint, because a control can fire more than its metadata declares |
    | `control-deprecated` / `member-deprecated` | control or property already deprecated at your target version |
@@ -52,11 +53,14 @@ Two gates:
 
    | Finding | Why it matters |
    | --- | --- |
-   | `unknown-binding-path` | a hand-written `{/TYPO}` the derived model has no path for — the field just stays empty. Inside a bound aggregation a relative `{TYPO}` is resolved against the **row**, so a misspelled column field is caught too — but only where the row's shape is known from the class's `TYPES`, never guessed |
+   | `unknown-binding-path` | a hand-written `{/TYPO}` the derived model has no path for — the field just stays empty. Also judged inside complex binding infos (`path: '/TYPO'`) and expression bindings (`${/TYPO}`); a numeric segment steps into the bound table's row (`/T_ITEMS/9/TEXT`). Inside a bound aggregation a relative `{TYPO}` is resolved against the **row**, so a misspelled column field is caught too — but only where the row's shape is known from the class's `TYPES`, never guessed |
    | `binding-for-event` / `event-for-property` | `_bind( )` on an event (dead control) or `_event( )` on a property |
    | `obsolete-binder` | `client->_bind_edit( )` — superseded by `client->_bind( )` |
    | `unconverted-abap-boolean` | an ABAP boolean written straight into the view: it arrives as `'X'`/`' '`, and UI5 reads any non-empty string as true — so `visible = abap_false` makes the control **visible**. Wrap it in `z2ui5_cl_ai_xml=>as_bool( )` |
    | `binding-to-local` | a local variable bound: the instance is serialized across the roundtrip, the method stack is not, so the value is lost |
+   | `binding-to-nonpublic` | a PROTECTED/PRIVATE attribute bound — only PUBLIC attributes are serialized into the model, so the first roundtrip fails with `BINDING_ERROR`; move it to the `PUBLIC SECTION` |
+   | `ui5-internal-access` | `mProperties` & friends read from a wire or binding — private UI5 internals with no API contract, they change across UI5 patches without notice |
+   | `commercial-ui5-host` | a URL pinned to `ui5.sap.com` / `*.hana.ondemand.com` — use `sdk.openui5.org`, or the app breaks on an OpenUI5-only landscape |
    | `view-never-displayed` | a view is built but never handed to the client — an empty page, no error |
    | `event-without-handler` | an event nothing reacts to — a dead control, *unless* the roundtrip alone is intended (so: a hint, never an error) |
    | `invalid-frontend-action` | a frontend-action `t_arg` outside the set the runtime accepts — an unknown `CONTROL_GLOBAL` object or method, a `BINDING_CALL` method that is not `filter`/`sort`, or `CONTROL_BY_ID`'s obsolete empty view slot. The browser logs and does nothing |
@@ -145,16 +149,19 @@ spelling that matches the config file name.
 | `1` | a finding at or above `--fail-on` (default: `warning`), or a render error |
 | `2` | bad usage or a broken config file |
 
-`--format` takes `stylish` (the default shown above), `json` and `markdown`;
-`--json` is a shorthand for `--format json`. Inside GitHub Actions every
-finding is additionally emitted as a workflow command, so it shows up on the
-diff of the pull request rather than in the log only — `--no-annotate` turns
-that off, `--annotate` forces it on elsewhere.
+`--format` takes `stylish` (the default shown above), `json`, `markdown` and
+`sarif`; `--json` is a shorthand for `--format json`. The SARIF log is what
+GitHub code scanning ingests — upload it with `github/codeql-action/upload-sarif`
+and findings land in the Security tab and as native PR annotations. Inside
+GitHub Actions every finding is additionally emitted as a workflow command
+(alongside `stylish` only, so the machine formats stay parseable) —
+`--no-annotate` turns that off, `--annotate` forces it on elsewhere.
 
 ## `--fix`
 
-Four rules carry an exact correction and are rewritten in place; the run
-then reports what is left, so `--fix` can go in front of any other flag.
+Five rules carry an exact correction and are rewritten in place; the run
+then reports what is left, so `--fix` can go in front of any other flag
+(`--fix-dry-run` reports what it would change without writing a file).
 
 | Rule | What `--fix` writes |
 | --- | --- |
@@ -162,6 +169,7 @@ then reports what is left, so `--fix` can go in front of any other flag.
 | `unconverted-abap-boolean` | a bare token wrapped in `z2ui5_cl_ai_xml=>as_bool( … )` — an expression is left alone |
 | `event-arg-unresolved` | the missing `$` inserted (`` `{COL}` `` → `` `${COL}` ``), a `\|…\|` template left alone |
 | `popover-display-val` | `popover_display( val = … )` → `popover_display( xml = … )`, the argument untouched |
+| `undeclared-namespace` | the missing `xmlns:` declaration inserted at the view root — for the conventional prefixes (`core`, `mvc`, `l`, `form`, `f`, `table`, `u`, `uxap`, `tnt`, `html`, `cc`) only; any other prefix could mean any library |
 
 Nothing else is touched: a correction that has to guess (which of two
 duplicate attributes survives, what event a `_bind` on an event slot meant to
@@ -196,6 +204,25 @@ off, give it another severity, or exclude files from it.
 
 **One member** — `--allow sap.m.Avatar.displaySize` keeps using a control or
 member that is newer than the floor, without touching the rule itself.
+
+### Adopting the linter on an existing repo — the baseline
+
+Switching a linter on over a grown codebase reports everything at once, and
+the escapes above all lose information (`rules: false` drops the rule,
+directives touch every line). The **baseline** freezes the debt instead:
+
+```bash
+npx abap2ui5-linter src --update-baseline     # writes abap2ui5lint-baseline.json
+```
+
+Commit that file and point the config at it (`"baseline":
+"abap2ui5lint-baseline.json"`, or `--baseline <file>`). From then on the
+frozen findings are suppressed (counted, never listed), **new** findings fail
+normally — and an entry whose finding is gone is **stale and fails too**, so
+the baseline only ever shrinks (rerun `--update-baseline` after fixing
+things). Keys are line-free (`file|rule|control|member|value` with a count),
+so moving code around does not invalidate them. Render errors are not
+baselineable — `rules: { "render-error": { "exclude": […] } }` covers those.
 
 ### SAPUI5 or OpenUI5
 
@@ -244,6 +271,7 @@ Precedence per option: explicit CLI flag > config file > built-in default
   "failOn": "warning",       // error | warning | hint | never
   "render": true,            // false = skip the render gate (--no-render)
   "allow": [],               // e.g. ["sap.m.Avatar.displaySize"]
+  "baseline": "abap2ui5lint-baseline.json",  // adoption-time debt, see above
   "rules": {
     "missing-accessibility": false,        // off
     "member-deprecated": "hint",           // another severity

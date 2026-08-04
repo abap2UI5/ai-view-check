@@ -58,6 +58,10 @@
       ],
       "description": "Lowest severity that fails the build. Everything is always reported — this only decides the exit code."
     },
+    "baseline": {
+      "type": "string",
+      "description": "Path (relative to this config) of the baseline file: findings frozen at adoption time are suppressed, new findings fail, a stale entry fails too. Create/refresh it with --update-baseline."
+    },
     "rules": {
       "type": "object",
       "additionalProperties": false,
@@ -79,6 +83,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'binding-to-local' — default severity: warning"
         },
+        "binding-to-nonpublic": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'binding-to-nonpublic' — default severity: error"
+        },
         "binding-type-mismatch": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'binding-type-mismatch' — default severity: warning"
@@ -90,6 +98,10 @@
         "collection-bound-to-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'collection-bound-to-property' — default severity: error"
+        },
+        "commercial-ui5-host": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'commercial-ui5-host' — default severity: warning"
         },
         "control-deprecated": {
           "$ref": "#/definitions/rule",
@@ -122,6 +134,10 @@
         "duplicate-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'duplicate-property' — default severity: error"
+        },
+        "enum-value-too-new": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'enum-value-too-new' — default severity: warning"
         },
         "event-arg-out-of-range": {
           "$ref": "#/definitions/rule",
@@ -218,6 +234,10 @@
         "too-many-children": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'too-many-children' — default severity: error"
+        },
+        "ui5-internal-access": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'ui5-internal-access' — default severity: warning"
         },
         "unconverted-abap-boolean": {
           "$ref": "#/definitions/rule",
