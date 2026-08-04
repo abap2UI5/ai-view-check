@@ -21,6 +21,7 @@ Two gates:
    | `invalid-aggregation-child` | a control the aggregation's type does not accept |
    | `control-too-new` / `member-too-new` | introduced after your target UI5 version (default **1.71**) |
    | `event-parameter-too-new` | a `${$parameters>/name}` read back in a `t_arg` that the event only gained later — resolved per event, not per name |
+   | `unknown-event-parameter` | a `${$parameters>/typo}` the event does not declare — the value usually arrives **empty**. Judged only against an event the control declares itself; a hint, because a control can fire more than its metadata declares |
    | `control-deprecated` / `member-deprecated` | control or property already deprecated at your target version |
    | `duplicate-aggregation` | the same aggregation opened twice under one control — the second tag replaces the first |
    | `aggregation-in-aggregation` | an aggregation directly inside another one — invalid XML, and the signature of a missing `shut( )`: UI5 then goes looking for a control class by that name |
@@ -64,6 +65,12 @@ Two gates:
    | `unused-public-attribute` | a PUBLIC attribute nothing in the class ever touches — only PUBLIC attributes are serialized, so it is shipped to the browser every roundtrip for nothing |
    | `event-arg-out-of-range` | `get_event_arg( n )` past the `t_arg` the event declares — the read comes back empty (a 500 in the transpiled runtime). Judged only for a literal index, inside the handler of an event the class raises itself |
    | `event-arg-unresolved` | a bare-brace `t_arg` literal (`` `{COL}` ``): the runtime sends it verbatim but only `$`-prefixed expressions are resolved by UI5, so `get_event_arg( )` receives an **empty** value with no error anywhere. Write `` `${COL}` `` (a template *starting* with a `{0}` placeholder is fine — that form is quoted) |
+   | `popover-display-val` | `popover_display( val = … )` does not compile — the parameter is `xml`, unlike `popup_display`'s `val`. Caught here because nothing in a systemless pipeline meets a compiler |
+   | `uncurated-formatter` | a `formatter: 'Formatter.…'` naming a function the framework's curated module does not export — UI5 resolves the string at binding time and an unknown name silently yields **no value**; compute it in ABAP and bind the finished field |
+   | `hardcoded-binding-path` | an absolute binding path written as text (`{/PATH}`, `path: '/PATH'`) — derive it from `client->_bind( var )` so it moves with a variable rename; an OData entity path in a class that switches its default model is exempt |
+   | `missing-view-display-on-navigated` | a `check_on_navigated( )` branch that never re-displays — after returning from a called app the browser keeps showing *that* app's view |
+   | `separate-lifecycle-ifs` | lifecycle checks in separate `IF` blocks instead of one `IF`/`ELSEIF` chain — separate blocks can run more than one branch per roundtrip (a guard block that `RETURN`s is exclusive and fine) |
+   | `duplicate-for-iterator` | the same `FOR` iterator name twice in one method — a 7.02 downport materializes each as `DATA <name> TYPE i` and fails activation |
 
 The name in the left column is the **rule id**: it is printed at the end of
 every reported line, it is the key in the `rules` block of the config file,
@@ -146,7 +153,7 @@ that off, `--annotate` forces it on elsewhere.
 
 ## `--fix`
 
-Three rules carry an exact correction and are rewritten in place; the run
+Four rules carry an exact correction and are rewritten in place; the run
 then reports what is left, so `--fix` can go in front of any other flag.
 
 | Rule | What `--fix` writes |
@@ -154,6 +161,7 @@ then reports what is left, so `--fix` can go in front of any other flag.
 | `obsolete-binder` | `client->_bind_edit( … )` → `client->_bind( … )`, arguments untouched |
 | `unconverted-abap-boolean` | a bare token wrapped in `z2ui5_cl_ai_xml=>as_bool( … )` — an expression is left alone |
 | `event-arg-unresolved` | the missing `$` inserted (`` `{COL}` `` → `` `${COL}` ``), a `\|…\|` template left alone |
+| `popover-display-val` | `popover_display( val = … )` → `popover_display( xml = … )`, the argument untouched |
 
 Nothing else is touched: a correction that has to guess (which of two
 duplicate attributes survives, what event a `_bind` on an event slot meant to
@@ -242,7 +250,11 @@ Precedence per option: explicit CLI flag > config file > built-in default
     "event-without-handler": {             // both, plus file exclusions
       "severity": "warning",
       "exclude": ["/test/"]                // file regex, case insensitive
-    }
+    },
+    // the render gate's pseudo-rule: waive render failures per file instead
+    // of render:false wholesale. A waived file that renders CLEAN is called
+    // out as a stale waiver, so the exclusion cannot quietly outlive its bug.
+    "render-error": { "exclude": ["legacy/"] }
   }
 }
 ```

@@ -199,10 +199,12 @@ const results = await checkFiles(files, opt);
 
 const threshold = opt.failOn === 'never' ? Infinity : severityRank(opt.failOn);
 /** Findings at or above the threshold decide the exit code - a hint never
- *  breaks a build unless it was asked to. Render errors always count: the
- *  view demonstrably did not load. */
+ *  breaks a build unless it was asked to. Render errors count as errors (the
+ *  view demonstrably did not load) unless the config's rules['render-error']
+ *  says they weigh less. */
 const failsBuild = (r) =>
-  r.renderErrors.length > 0 || r.findings.some((f) => severityRank(severityOf(f)) >= threshold);
+  (r.renderErrors.length > 0 && severityRank(r.renderSeverity ?? 'error') >= threshold)
+  || r.findings.some((f) => severityRank(severityOf(f)) >= threshold);
 
 const summary = summarize(results);
 summary.failing = results.filter(failsBuild).length;
