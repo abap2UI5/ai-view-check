@@ -63,7 +63,7 @@ import { findConfig, loadConfig, applyConfig } from './lib/config.mjs';
 import { snapshotVersion } from './lib/properties.mjs';
 import { SEVERITIES, severityRank, severityOf } from './lib/findings.mjs';
 import { applyFixes } from './lib/fix.mjs';
-import { loadBaseline, applyBaseline, buildBaseline, writeBaseline } from './lib/baseline.mjs';
+import { loadBaseline, applyBaseline, buildBaseline, writeBaseline, baselineBase } from './lib/baseline.mjs';
 import { FORMATS, summarize, contextLine, formatStylish, formatJson, formatMarkdown, formatSarif, githubAnnotations } from './lib/report.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -214,7 +214,9 @@ const results = await checkFiles(files, opt);
  * too — a suppression can never quietly outlive what it suppressed. */
 if (updateBaseline) {
   const file = opt.baseline ?? 'abap2ui5lint-baseline.json';
-  const map = buildBaseline(results);
+  // keys are relative to the baseline file's own directory, so every runner
+  // (CLI from any cwd, the Action, the VS Code extension) computes the same
+  const map = buildBaseline(results, baselineBase(file));
   writeBaseline(file, map);
   const n = [...map.values()].reduce((s, c) => s + c, 0);
   console.log(`baseline: wrote ${n} finding(s) as ${map.size} entr${map.size === 1 ? 'y' : 'ies'} to ${path.relative(process.cwd(), file)}`);
@@ -225,7 +227,7 @@ let baselineStale = [];
 if (opt.baseline && fs.existsSync(opt.baseline)) {
   let map;
   try { map = loadBaseline(opt.baseline); } catch (e) { die(e.message); }
-  const { suppressed, stale } = applyBaseline(results, map);
+  const { suppressed, stale } = applyBaseline(results, map, baselineBase(opt.baseline));
   baselineStale = stale;
   baselineNote = `baseline: ${suppressed} finding(s) suppressed by ${path.relative(process.cwd(), opt.baseline)}`
     + (stale.length ? `, ${stale.length} STALE entr${stale.length === 1 ? 'y' : 'ies'} — the finding is gone, remove the entry or run --update-baseline` : '');
