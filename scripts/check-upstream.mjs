@@ -76,7 +76,11 @@ export function parseGlobalTargets(abapSrc) {
     const methodsAt = entry.search(/methods\s*:\s*\{/);
     if (methodsAt !== -1) {
       const methods = braceRegion(entry, entry.indexOf('{', methodsAt));
-      out[m[1]] = [...methods.matchAll(/(\w+)\s*:/g)].map((x) => x[1]);
+      // a `//` comment documenting the payload shape ("{ CODE: { digits: n } }")
+      // carries `word:` pairs that are not methods - drop the comments first
+      // (`://` of a URL is not a comment start)
+      const code = methods.replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      out[m[1]] = [...code.matchAll(/(\w+)\s*:/g)].map((x) => x[1]);
     }
     entryRe.lastIndex = open + entry.length + 2; // never match inside the entry
   }
