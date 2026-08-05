@@ -369,6 +369,22 @@ assert(xml.renderErrors.length === 0, `xml: renders clean (${xml.renderErrors[0]
   const shown = (await checkFiles([f('good.clas.abap')], { render: false }))[0];
   assert(!shown.findings.some((x) => x.type === 'view-never-displayed'),
     'abap rules: a displayed view is not reported');
+  // popover_display and the nest*_view_display family are display calls too -
+  // a popover-only helper class is legitimate (caught by the VS Code
+  // extension's snippet gate as a false positive of the narrower list)
+  const popoverOnly = `CLASS zcl_pop DEFINITION PUBLIC.
+  PUBLIC SECTION.
+    INTERFACES z2ui5_if_app.
+ENDCLASS.
+CLASS zcl_pop IMPLEMENTATION.
+  METHOD z2ui5_if_app~main.
+    DATA(popover) = z2ui5_cl_ai_xml=>factory( ).
+    popover->open( n = \`Popover\` )->a( n = \`xmlns\` v = \`sap.m\` ).
+    client->popover_display( xml = popover->stringify( ) by_id = \`opener\` ).
+  ENDMETHOD.
+ENDCLASS.`;
+  assert(!checkAbapSource(popoverOnly).findings.some((x) => x.type === 'view-never-displayed'),
+    'abap rules: a popover-only class displays its view too');
 }
 
 // ---------------------------------------------------------------- config ----

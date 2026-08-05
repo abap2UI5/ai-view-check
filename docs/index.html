@@ -487,12 +487,12 @@ ENDIF.</code></pre>
         <p class="summary">a PUBLIC attribute nothing in the class ever touches</p>
         <p class="detail">Only PUBLIC attributes are serialized into the model (<code>z2ui5_cl_core_srv_model</code> filters on visibility), so every one of them is shipped to the browser on every roundtrip. One that is never bound, never read and never written is pure transport weight. Deliberately narrower than "not bound in any view": an attribute used only in ABAP code is not dead, it is *state* — PUBLIC is precisely how a value survives the roundtrip. Only a name that appears exactly once in the whole class, its own declaration, is reported, and only as a hint: an attribute can still be read from outside the class, which no single source file can see.</p>
       </article>
-      <article class="rule" id="view-never-displayed" data-search="view-never-displayed a view is built but never handed to the client an empty page and no error: the builder ran, the result was never passed to client-&gt;view_display( ) (or a popup/nav call). error">
+      <article class="rule" id="view-never-displayed" data-search="view-never-displayed a view is built but never handed to the client an empty page and no error: the builder ran, the result was never passed to client-&gt;view_display( ) (or a nested-view, popup, popover or nav call). error">
         <h3><a href="#view-never-displayed">view-never-displayed</a>
           <span class="badge error">error</span>
         </h3>
         <p class="summary">a view is built but never handed to the client</p>
-        <p class="detail">An empty page and no error: the builder ran, the result was never passed to <code>client-&gt;view_display( )</code> (or a popup/nav call).</p>
+        <p class="detail">An empty page and no error: the builder ran, the result was never passed to <code>client-&gt;view_display( )</code> (or a nested-view, popup, popover or nav call).</p>
       </article>
     </section>
     <section class="cat" id="cat-data">
