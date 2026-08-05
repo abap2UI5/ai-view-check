@@ -68,6 +68,46 @@ jobs:
         working-directory: ai-demokit
         run: node scripts/view-gates.mjs --strict
 
+  ai-mcp:
+    # The third consumer does not pin at all: the MCP server imports whatever
+    # linter checkout sits next to it, through the package exports map, and
+    # its own CI has no linter. Running its test suite with THIS checkout as
+    # the sibling is the only automated guard on that edge - it catches a
+    # removed export subpath or a changed result shape before it lands in
+    # every developer's editor session.
+    name: ai-mcp smoke (unpinned consumer)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the linter (this change)
+        uses: actions/checkout@v4
+        with:
+          path: linter
+
+      - name: Check out ai-mcp
+        uses: actions/checkout@v4
+        with:
+          repository: abap2UI5/ai-mcp
+          path: ai-mcp
+
+      - name: Check out ai-demokit (the server's content source)
+        uses: actions/checkout@v4
+        with:
+          repository: abap2UI5/ai-demokit
+          path: ai-demokit
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install ai-mcp
+        working-directory: ai-mcp
+        run: npm ci
+
+      - name: Test suite with this linter as the sibling checkout
+        working-directory: ai-mcp
+        run: npm test
+
   vscode-extension:
     # The other consumer imports the library through its subpath exports
     # (./reconstruct, ./properties, ./abap-rules, ./findings) against

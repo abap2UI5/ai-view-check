@@ -42,3 +42,23 @@ jobs:
           prerelease: true
           make_latest: false
           files: view-check-bundle.tgz
+      # The same bundle once more under an immutable per-commit tag. The
+      # extension prefers the tag matching its pinned linter commit (so an
+      # installed release runs the exact linter state it was tested with) and
+      # falls back to the rolling tag when no per-commit bundle exists. Also
+      # the audit/rollback handle the rolling tag cannot provide.
+      - name: Short SHA
+        id: sha
+        run: echo "short=${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: render-gate-bundle-${{ steps.sha.outputs.short }}
+          name: Render-gate bundle @ ${{ steps.sha.outputs.short }}
+          body: >
+            Immutable render-gate bundle built from commit ${{ github.sha }}.
+            Preferred by VS Code extension builds pinning this linter commit;
+            the rolling `render-gate-bundle` release always carries the
+            newest build.
+          prerelease: true
+          make_latest: false
+          files: view-check-bundle.tgz
