@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">32 error</span>
+      <span class="badge error">33 error</span>
       <span class="badge warning">17 warning</span>
       <span class="badge hint">5 hint</span>
       <span class="badge fix">5 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 54 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 55 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -337,6 +337,16 @@ DATA(ok)  = `&lt;style&gt;.a \{color:red\}&lt;/style&gt;`.  " survives</code></p
         </h3>
         <p class="summary">the same <code>FOR</code> iterator name twice in one method</p>
         <p class="detail">Fine on ABAP 7.50+, where the iterator is local to its <code>VALUE #( )</code> expression — but a 7.02 downport (abaplint <code>--fix</code>, and the transpiler behind a Node-based runtime) materializes each one as <code>DATA &lt;name&gt; TYPE i</code> in the method body, and the second declaration fails activation with "variable already defined". Use distinct names (<code>i</code>, <code>j</code>, <code>k</code>) per <code>VALUE</code> block.</p>
+      </article>
+      <article class="rule" id="escaped-brace-in-backtick" data-search="escaped-brace-in-backtick a binding written with escaped braces inside a backtick literal brace escaping is a |…| template rule. in a template the backslash is abap's own escape, so \{ reaches the builder as a bare { — which is exactly what a binding needs. a backtick literal has no escape processing at all: the backslash is taken verbatim and lands in the serialized attribute, where ui5 reads \{ path: … \} as text rather than a binding and either renders it raw or fails to parse the view. write plain braces in a backtick literal; keep the escapes for the template form. error">
+        <h3><a href="#escaped-brace-in-backtick">escaped-brace-in-backtick</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a binding written with escaped braces inside a <code>backtick</code> literal</p>
+        <p class="detail">Brace escaping is a |…| TEMPLATE rule. In a template the backslash is ABAP's own escape, so <code>\{</code> reaches the builder as a bare <code>{</code> — which is exactly what a binding needs. A <code>backtick</code> literal has no escape processing at all: the backslash is taken verbatim and lands in the serialized attribute, where UI5 reads <code>\{ path: … \}</code> as text rather than a binding and either renders it raw or fails to parse the view. Write plain braces in a backtick literal; keep the escapes for the template form.</p>
+        <pre><code>a( n = `items` v = `\{ path: 'message&gt;/' \}` )   " the backslash reaches the XML
+a( n = `items` v = `{ path: 'message&gt;/' }` )     " correct in a backtick literal
+a( n = `items` v = |\{ path: '{ p }' \}| )       " correct in a template</code></pre>
       </article>
       <article class="rule" id="event-arg-out-of-range" data-search="event-arg-out-of-range get_event_arg( n ) past the t_arg the event declares the arguments are static — they are written at the raise site — so reading past them is never anything but a mistake: initial in abap, a 500 in the transpiled runtime, and either way not the value the handler works with. judged only for a literal index, inside the handler of an event the class raises itself with client-&gt;_event( ), and never across a method boundary: an event arriving from a message_box_display( onclose = ) callback or a frontend action carries arguments from a source this pass cannot see. error">
         <h3><a href="#event-arg-out-of-range">event-arg-out-of-range</a>

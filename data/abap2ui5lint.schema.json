@@ -139,6 +139,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'enum-value-too-new' — default severity: warning"
         },
+        "escaped-brace-in-backtick": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'escaped-brace-in-backtick' — default severity: error"
+        },
         "event-arg-out-of-range": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'event-arg-out-of-range' — default severity: error"
