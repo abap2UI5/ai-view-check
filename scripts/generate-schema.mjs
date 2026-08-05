@@ -15,7 +15,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { RULES, SEVERITIES, defaultSeverityOf } from '../lib/findings.mjs';
+import { RULES, SEVERITIES, defaultSeverityOf, RENDER_RULE } from '../lib/findings.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const SCHEMA_FILE = path.join(ROOT, 'data', 'abap2ui5lint.schema.json');
@@ -30,6 +30,12 @@ export function buildSchema() {
       description: `abap2UI5-linter rule '${id}' — default severity: ${defaultSeverityOf(id)}`,
     };
   }
+  // the render gate's pseudo-rule: waive or downgrade render failures per
+  // file instead of switching the gate off wholesale with `render: false`
+  rules[RENDER_RULE] = {
+    $ref: '#/definitions/rule',
+    description: "render-gate failures — false or a matching 'exclude' waives them (a waived file that renders clean is called out as stale), a severity decides what they count as. Default severity: error",
+  };
   return {
     $schema: 'http://json-schema.org/draft-07/schema#',
     $id: 'https://raw.githubusercontent.com/abap2UI5/linter/main/data/abap2ui5lint.schema.json',
@@ -64,6 +70,10 @@ export function buildSchema() {
       failOn: {
         enum: [...SEVERITIES, 'never'],
         description: 'Lowest severity that fails the build. Everything is always reported — this only decides the exit code.',
+      },
+      baseline: {
+        type: 'string',
+        description: 'Path (relative to this config) of the baseline file: findings frozen at adoption time are suppressed, new findings fail, a stale entry fails too. Create/refresh it with --update-baseline.',
       },
       rules: {
         type: 'object',

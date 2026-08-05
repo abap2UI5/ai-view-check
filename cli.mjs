@@ -63,12 +63,14 @@ import { findConfig, loadConfig, applyConfig } from './lib/config.mjs';
 import { snapshotVersion } from './lib/properties.mjs';
 import { SEVERITIES, severityRank, severityOf } from './lib/findings.mjs';
 import { applyFixes } from './lib/fix.mjs';
-import { FORMATS, summarize, contextLine, formatStylish, formatJson, formatMarkdown, githubAnnotations } from './lib/report.mjs';
+import { loadBaseline, applyBaseline, buildBaseline, writeBaseline, baselineBase } from './lib/baseline.mjs';
+import { FORMATS, summarize, contextLine, formatStylish, formatJson, formatMarkdown, formatSarif, githubAnnotations } from './lib/report.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const USAGE = 'usage: abap2ui5-linter [paths...] [--ui5 1.71] [--distribution sapui5|openui5] '
-  + '[--allow control[.member]] [--fail-on error|warning|hint|never] [--format stylish|json|markdown] '
-  + '[--fix] [--quiet] [--annotate|--no-annotate] [--no-render] [--no-properties] [--advisory] [--verbose] '
+  + '[--allow control[.member]] [--fail-on error|warning|hint|never] [--format stylish|json|markdown|sarif] '
+  + '[--fix] [--fix-dry-run] [--baseline <file>] [--update-baseline] '
+  + '[--quiet] [--annotate|--no-annotate] [--no-render] [--no-properties] [--advisory] [--verbose] '
   + '[--config abap2ui5lint.jsonc] [--no-config] [--version]';
 
 const die = (message) => {
@@ -89,6 +91,7 @@ const seen = new Set(); // options the CLI set explicitly - they beat the config
 const paths = [];
 let configFlag = null;
 let noConfig = false;
+let updateBaseline = false;
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   // a flag that takes a value must actually have one - `--allow` as the last
@@ -108,6 +111,9 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--no-config') noConfig = true;
   else if (a === '--quiet') opt.quiet = true;
   else if (a === '--fix') opt.fix = true;
+  else if (a === '--fix-dry-run') { opt.fix = true; opt.fixDryRun = true; }
+  else if (a === '--baseline') { opt.baseline = value(); seen.add('baseline'); }
+  else if (a === '--update-baseline') updateBaseline = true;
   else if (a === '--annotate') opt.annotate = true;
   else if (a === '--no-annotate') opt.annotate = false;
   else if (a === '--json') opt.format = 'json';
@@ -150,6 +156,10 @@ if (!noConfig) {
       const base = path.dirname(configFile);
       paths.push(...cfg.paths.map((p) => (path.isAbsolute(p) ? p : path.join(base, p))));
     }
+    // a baseline named in the config lives next to the config, not the cwd
+    if (!seen.has('baseline') && cfg.baseline) {
+      opt.baseline = path.resolve(path.dirname(configFile), cfg.baseline);
+    }
   }
 }
 if (!paths.length) paths.push('src');
@@ -176,7 +186,7 @@ if (!files.length) {
  * the render result), rewrite, then the normal run reports what is left -
  * which is what makes `--fix` safe to put in front of any other flag. */
 if (opt.fix) {
-  const dryRun = process.env.ABAP2UI5LINT_FIX_DRY_RUN === 'true';
+  const dryRun = opt.fixDryRun === true || process.env.ABAP2UI5LINT_FIX_DRY_RUN === 'true';
   let files_ = 0;
   let fixed = 0;
   let deferred = 0;
@@ -197,20 +207,60 @@ if (opt.fix) {
 
 const results = await checkFiles(files, opt);
 
+/* The baseline: adopt the linter on a repo that already has findings.
+ * --update-baseline freezes the CURRENT findings as accepted debt;
+ * a configured baseline suppresses exactly those on every later run, new
+ * findings fail normally, and a STALE entry (its finding is gone) fails
+ * too — a suppression can never quietly outlive what it suppressed. */
+if (updateBaseline) {
+  const file = opt.baseline ?? 'abap2ui5lint-baseline.json';
+  // keys are relative to the baseline file's own directory, so every runner
+  // (CLI from any cwd, the Action, the VS Code extension) computes the same
+  const map = buildBaseline(results, baselineBase(file));
+  writeBaseline(file, map);
+  const n = [...map.values()].reduce((s, c) => s + c, 0);
+  console.log(`baseline: wrote ${n} finding(s) as ${map.size} entr${map.size === 1 ? 'y' : 'ies'} to ${path.relative(process.cwd(), file)}`);
+  process.exit(0);
+}
+let baselineNote = null;
+let baselineStale = [];
+if (opt.baseline && fs.existsSync(opt.baseline)) {
+  let map;
+  try { map = loadBaseline(opt.baseline); } catch (e) { die(e.message); }
+  const { suppressed, stale } = applyBaseline(results, map, baselineBase(opt.baseline));
+  baselineStale = stale;
+  baselineNote = `baseline: ${suppressed} finding(s) suppressed by ${path.relative(process.cwd(), opt.baseline)}`
+    + (stale.length ? `, ${stale.length} STALE entr${stale.length === 1 ? 'y' : 'ies'} — the finding is gone, remove the entry or run --update-baseline` : '');
+} else if (opt.baseline && !updateBaseline) {
+  die(`baseline file not found: ${opt.baseline} (create it with --update-baseline)`);
+}
+
 const threshold = opt.failOn === 'never' ? Infinity : severityRank(opt.failOn);
 /** Findings at or above the threshold decide the exit code - a hint never
- *  breaks a build unless it was asked to. Render errors always count: the
- *  view demonstrably did not load. */
+ *  breaks a build unless it was asked to. Render errors count as errors (the
+ *  view demonstrably did not load) unless the config's rules['render-error']
+ *  says they weigh less. */
 const failsBuild = (r) =>
-  r.renderErrors.length > 0 || r.findings.some((f) => severityRank(severityOf(f)) >= threshold);
+  (r.renderErrors.length > 0 && severityRank(r.renderSeverity ?? 'error') >= threshold)
+  || r.findings.some((f) => severityRank(severityOf(f)) >= threshold);
 
 const summary = summarize(results);
 summary.failing = results.filter(failsBuild).length;
 const context = contextLine(opt, summary, snapshotVersion());
 
 if (opt.format === 'json') console.log(formatJson(results, summary, opt));
+else if (opt.format === 'sarif') console.log(formatSarif(results));
 else if (opt.format === 'markdown') console.log(formatMarkdown(results, summary, { ...opt, context }));
 else console.log(formatStylish(results, summary, { ...opt, context }));
+
+/* Baseline prose rides alongside the HUMAN report only — `--json`/`--sarif`
+ * exist to be piped, and a prose line after the document breaks the parse
+ * (the same rule the annotations follow). The stale entries still decide
+ * the exit code in every format. */
+if (baselineNote && opt.format === 'stylish') {
+  console.log(baselineNote);
+  for (const s of baselineStale) console.log(`  ! stale: ${s.key} (${s.count})`);
+}
 
 if (opt.verbose && opt.format === 'stylish') {
   for (const r of results) {
@@ -227,4 +277,4 @@ if (opt.annotate && opt.format === 'stylish') {
   for (const line of githubAnnotations(results, opt)) console.log(line);
 }
 
-if (summary.failing > 0) process.exit(1);
+if (summary.failing > 0 || baselineStale.length > 0) process.exit(1);

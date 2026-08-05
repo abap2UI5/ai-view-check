@@ -58,6 +58,10 @@
       ],
       "description": "Lowest severity that fails the build. Everything is always reported — this only decides the exit code."
     },
+    "baseline": {
+      "type": "string",
+      "description": "Path (relative to this config) of the baseline file: findings frozen at adoption time are suppressed, new findings fail, a stale entry fails too. Create/refresh it with --update-baseline."
+    },
     "rules": {
       "type": "object",
       "additionalProperties": false,
@@ -79,6 +83,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'binding-to-local' — default severity: warning"
         },
+        "binding-to-nonpublic": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'binding-to-nonpublic' — default severity: error"
+        },
         "binding-type-mismatch": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'binding-type-mismatch' — default severity: warning"
@@ -90,6 +98,10 @@
         "collection-bound-to-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'collection-bound-to-property' — default severity: error"
+        },
+        "commercial-ui5-host": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'commercial-ui5-host' — default severity: warning"
         },
         "control-deprecated": {
           "$ref": "#/definitions/rule",
@@ -111,6 +123,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'duplicate-aggregation' — default severity: error"
         },
+        "duplicate-for-iterator": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'duplicate-for-iterator' — default severity: warning"
+        },
         "duplicate-id": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'duplicate-id' — default severity: error"
@@ -118,6 +134,10 @@
         "duplicate-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'duplicate-property' — default severity: error"
+        },
+        "enum-value-too-new": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'enum-value-too-new' — default severity: warning"
         },
         "event-arg-out-of-range": {
           "$ref": "#/definitions/rule",
@@ -146,6 +166,10 @@
         "frontend-action-unknown-id": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'frontend-action-unknown-id' — default severity: error"
+        },
+        "hardcoded-binding-path": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'hardcoded-binding-path' — default severity: warning"
         },
         "invalid-aggregation-child": {
           "$ref": "#/definitions/rule",
@@ -179,9 +203,17 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'missing-required-aggregation' — default severity: warning"
         },
+        "missing-view-display-on-navigated": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'missing-view-display-on-navigated' — default severity: error"
+        },
         "obsolete-binder": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'obsolete-binder' — default severity: warning"
+        },
+        "popover-display-val": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'popover-display-val' — default severity: error"
         },
         "relative-binding-without-context": {
           "$ref": "#/definitions/rule",
@@ -191,6 +223,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'sapui5-only-control' — default severity: error"
         },
+        "separate-lifecycle-ifs": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'separate-lifecycle-ifs' — default severity: warning"
+        },
         "settable-property-via-action": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'settable-property-via-action' — default severity: hint"
@@ -199,9 +235,17 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'too-many-children' — default severity: error"
         },
+        "ui5-internal-access": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'ui5-internal-access' — default severity: warning"
+        },
         "unconverted-abap-boolean": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'unconverted-abap-boolean' — default severity: error"
+        },
+        "uncurated-formatter": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'uncurated-formatter' — default severity: error"
         },
         "undeclared-namespace": {
           "$ref": "#/definitions/rule",
@@ -223,6 +267,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'unknown-control' — default severity: error"
         },
+        "unknown-event-parameter": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'unknown-event-parameter' — default severity: hint"
+        },
         "unknown-property": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'unknown-property' — default severity: error"
@@ -234,6 +282,10 @@
         "view-never-displayed": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'view-never-displayed' — default severity: error"
+        },
+        "render-error": {
+          "$ref": "#/definitions/rule",
+          "description": "render-gate failures — false or a matching 'exclude' waives them (a waived file that renders clean is called out as stale), a severity decides what they count as. Default severity: error"
         }
       }
     }

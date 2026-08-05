@@ -22,6 +22,9 @@
  * OpenUI5 clone needed.
  *
  * Run:  node scripts/generate-metadata.mjs
+ *       node scripts/generate-metadata.mjs --check        exit 1 if the
+ *                                          committed file is stale (the test
+ *                                          uses this — the drift gate)
  *       node scripts/generate-metadata.mjs --out <file>   (consumers)
  *       OPENUI5_DIR=/path/to/openui5 node scripts/generate-metadata.mjs --out …
  */
@@ -251,12 +254,30 @@ function classMeta(src, name) {
   };
 }
 
+/** `<Ident>.extend("full.Name"` hits, anchored on the LITERAL `.extend(` and
+ *  reading the identifier backwards from it. The obvious spelling —
+ *  `(\w+)\.extend\(` — has no anchor, so the engine restarts inside every
+ *  word of every file: that one regex was 167 of the generator's 172 seconds
+ *  (profiled 2026-08-04). This form is linear and took the run to seconds. */
+function extendHits(src) {
+  const hits = [];
+  const re = /\.extend\(\s*["']([\w.]+)["']/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    let start = m.index;
+    while (start > 0 && /\w/.test(src[start - 1])) start--;
+    if (start === m.index) continue; // nothing to the left that could hold the class
+    hits.push({ index: start, ident: src.slice(start, m.index), name: m[1] });
+  }
+  return hits;
+}
+
 /** Every class a file defines - a source file can hold several
  *  (HeaderContainer.js defines HeaderContainerItemContainer AND
  *  HeaderContainer), and taking only the first loses the rest. */
 function parseControls(file, base) {
   const src = fs.readFileSync(file, 'utf8');
-  const hits = [...src.matchAll(/(\w+)\.extend\(\s*["']([\w.]+)["']/g)];
+  const hits = extendHits(src);
   if (!hits.length) return [];
 
   // dependency -> parent resolution is file-wide (the sap.ui.define header)
@@ -278,7 +299,7 @@ function parseControls(file, base) {
     const region = src.slice(from, to);
     const metaAt = region.search(/\bmetadata\s*:\s*\{/);
     const meta = metaAt >= 0 ? braceBody(region, region.indexOf('{', metaAt)) : '';
-    return parseClass(src, region, meta, hit[2], parentOf(hit[1]));
+    return parseClass(src, region, meta, hit.name, parentOf(hit.ident));
   });
 }
 
@@ -321,15 +342,44 @@ function enumValues(body) {
   return [...new Set(values)].filter(Boolean);
 }
 
+/** Per-VALUE @since from the enum body's JSDoc blocks — `ButtonType.Critical`
+ *  is @since 1.73 while the type itself predates version tracking, and the
+ *  member-level gate can never see that. Only values that carry one appear. */
+function enumSinces(body) {
+  const out = {};
+  let doc = '';
+  for (let i = 0; i < body.length; i++) {
+    if (body[i] === '/' && body[i + 1] === '*') {
+      const end = body.indexOf('*/', i + 2);
+      doc = body.slice(i, end < 0 ? body.length : end);
+      i = (end < 0 ? body.length : end + 2) - 1;
+      continue;
+    }
+    const m = /^["']?\w+["']?\s*:\s*["']([^"']*)["']/.exec(body.slice(i, i + 200));
+    if (m) {
+      const since = doc.match(/@since\s+(?:version\s+)?([\d.]+)/i)?.[1];
+      if (since && m[1] && out[m[1]] === undefined) out[m[1]] = since;
+      doc = '';
+      i += m[0].length - 1;
+    }
+  }
+  return out;
+}
+
 /** Enum values from a library.js: `thisLib.Name = { Key: "Value" }`. */
 function parseLibraryEnums(file, lib) {
   const src = fs.readFileSync(file, 'utf8');
   const out = {};
+  const sinces = {};
   for (const m of src.matchAll(/thisLib\.(\w+)\s*=\s*\{/g)) {
-    const values = enumValues(braceBody(src, src.indexOf('{', m.index + m[0].length - 1)));
-    if (values.length) out[`${lib}.${m[1]}`] = values;
+    const body = braceBody(src, src.indexOf('{', m.index + m[0].length - 1));
+    const values = enumValues(body);
+    if (!values.length) continue;
+    out[`${lib}.${m[1]}`] = values;
+    const s = enumSinces(body);
+    if (Object.keys(s).length) sinces[`${lib}.${m[1]}`] = s;
   }
-  return out;
+  return { values: out, sinces };
 }
 
 /** Enums declared in their own module:
@@ -338,34 +388,44 @@ function parseLibraryEnums(file, lib) {
 function parseModuleEnums(file) {
   const src = fs.readFileSync(file, 'utf8');
   const out = {};
+  const sinces = {};
   for (const m of src.matchAll(/DataType\.registerEnum\(\s*["']([\w.]+)["']\s*,\s*(\w+)\s*\)/g)) {
     const [, fullName, ident] = m;
     const declRe = new RegExp(`(?:var|const|let)\\s+${ident}\\s*=\\s*\\{`);
     const decl = src.match(declRe);
     if (!decl) continue;
-    const values = enumValues(braceBody(src, src.indexOf('{', decl.index + decl[0].length - 1)));
-    if (values.length) out[fullName] = values;
+    const body = braceBody(src, src.indexOf('{', decl.index + decl[0].length - 1));
+    const values = enumValues(body);
+    if (!values.length) continue;
+    out[fullName] = values;
+    const s = enumSinces(body);
+    if (Object.keys(s).length) sinces[fullName] = s;
   }
-  return out;
+  return { values: out, sinces };
 }
 
 const controls = {};
 const enums = {};
+const enumSince = {};
 let files = 0;
 const dirs = libDirs();
 if (!dirs.length) {
   console.error('no control sources found - run npm ci, or set OPENUI5_DIR');
   process.exit(1);
 }
+const takeEnums = ({ values, sinces }) => {
+  Object.assign(enums, values);
+  Object.assign(enumSince, sinces);
+};
 for (const [base, dir] of dirs) {
   const lib = base.replace(/\//g, '.');
   const libJs = path.join(dir, 'library.js');
-  if (fs.existsSync(libJs)) Object.assign(enums, parseLibraryEnums(libJs, lib));
+  if (fs.existsSync(libJs)) takeEnums(parseLibraryEnums(libJs, lib));
 
   const acc = [];
   collect(dir, base, acc);
   for (const [file, fileBase] of acc) {
-    Object.assign(enums, parseModuleEnums(file));
+    takeEnums(parseModuleEnums(file));
     for (const c of parseControls(file, fileBase)) {
       const entry = { parent: c.parent, members: c.members };
       if (c.since) entry.since = c.since;
@@ -396,16 +456,32 @@ function sourceVersion() {
 
 const ui5Version = sourceVersion();
 
-fs.writeFileSync(OUT, JSON.stringify({
-  note: 'UI5 metadata snapshot: per control parent, @since/@deprecated, interfaces, defaultAggregation and all declared members with types; plus enum values. Generated by scripts/generate-metadata.mjs from the OpenUI5 sources.',
+const text = JSON.stringify({
+  note: 'UI5 metadata snapshot: per control parent, @since/@deprecated, interfaces, defaultAggregation and all declared members with types; plus enum values (with per-value @since where the JSDoc carries one). Generated by scripts/generate-metadata.mjs from the OpenUI5 sources.',
   ui5Version,
   enums,
+  enumSince,
   controls,
-}) + '\n');
+}) + '\n';
 
-const withProps = Object.values(controls).filter((c) => c.properties).length;
-const withAggs = Object.values(controls).filter((c) => c.aggregations).length;
-console.log(
-  `properties.json: ${files} controls (${withProps} with properties, ${withAggs} with aggregations), ` +
-  `${Object.keys(enums).length} enums`
-);
+if (process.argv.includes('--check')) {
+  /* The drift gate: a change to this generator without a regenerate used to
+   * merge silently (AGENTS.md called that out as the one committed artefact
+   * without a check). Same contract as generate-schema --check. Only
+   * meaningful against the default OUT with the pinned @openui5 packages —
+   * a consumer generating at another version compares apples to oranges. */
+  const current = fs.existsSync(OUT) ? fs.readFileSync(OUT, 'utf8') : '';
+  if (current !== text) {
+    console.error('data/properties.json is stale — run: npm run generate-metadata');
+    process.exit(1);
+  }
+  console.log('data/properties.json is up to date');
+} else {
+  fs.writeFileSync(OUT, text);
+  const withProps = Object.values(controls).filter((c) => c.properties).length;
+  const withAggs = Object.values(controls).filter((c) => c.aggregations).length;
+  console.log(
+    `properties.json: ${files} controls (${withProps} with properties, ${withAggs} with aggregations), ` +
+    `${Object.keys(enums).length} enums`
+  );
+}

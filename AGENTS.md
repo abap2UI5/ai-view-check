@@ -65,8 +65,8 @@ exact line):
 
 | Emitting file | Finding types |
 | --- | --- |
-| `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `binding-type-mismatch`, `missing-accessibility` |
-| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `event-arg-out-of-range`, `invalid-frontend-action`, `unescaped-brace-in-style`, `collapsed-brace-in-style`, `unused-public-attribute`, `view-never-displayed` |
+| `lib/properties.mjs` | `unknown-control`, `control-too-new`, `control-deprecated`, `sapui5-only-control` (with `--distribution openui5`), `unknown-property`, `member-too-new`, `member-deprecated`, `event-parameter-too-new`, `unknown-event-parameter`, `invalid-property-value`, `unknown-aggregation`, `aggregation-in-aggregation`, `too-many-children`, `invalid-aggregation-child`, `duplicate-aggregation`, `missing-required-aggregation`, `duplicate-id`, `undeclared-namespace`, `invalid-expression-binding`, `binding-for-event`, `event-for-property`, `unknown-binding-path`, `collection-bound-to-property`, `binding-type-mismatch`, `uncurated-formatter` (list: `lib/formatters.mjs`), `missing-accessibility` |
+| `lib/abap-rules.mjs` | `obsolete-binder`, `binding-to-local`, `unconverted-abap-boolean`, `event-without-handler`, `event-arg-unresolved`, `event-arg-out-of-range`, `invalid-frontend-action`, `unescaped-brace-in-style`, `collapsed-brace-in-style`, `unused-public-attribute`, `view-never-displayed`, `popover-display-val`, `hardcoded-binding-path`, `missing-view-display-on-navigated`, `separate-lifecycle-ifs`, `duplicate-for-iterator` |
 | `lib/reconstruct.mjs` | `excess-shut`, `duplicate-property`, `attribute-without-element`, `display-root-mismatch`, `open-levels` (note-only) — via `prep.structure`, consumed in `lib/index.mjs` |
 | `lib/render.mjs` | render-gate failures (real `XMLView.create` errors) |
 | `lib/config.mjs` | no findings — the `abap2ui5lint.jsonc`/`.json` loader (discovery, validation, precedence, the `rules` block). New config keys go through its KNOWN set + a run.mjs assertion |
@@ -90,7 +90,13 @@ npm run generate-schema      # data/abap2ui5lint.schema.json
 npm run generate-rules-page  # docs/index.html
 ```
 
-`lib/frontend-actions.mjs` is the one **hand-maintained** knowledge file:
+`lib/frontend-actions.mjs` and `lib/formatters.mjs` are the two
+**hand-maintained** knowledge files, and both are watched by
+`scripts/check-upstream.mjs` (weekly via `upstream-sync.yml`, on drift an
+issue): it re-derives the curated formatter exports and the `GLOBAL_TARGETS`
+map from the abap2UI5 sources and fails on any difference — so an upstream
+change becomes an issue here instead of a silent false positive at some
+user's desk. On `lib/frontend-actions.mjs` in detail:
 the closed whitelists `invalid-frontend-action` judges against. Its source of
 truth is abap2UI5's `z2ui5_cl_app_frontendaction_js` — a JavaScript module
 embedded in an ABAP string concatenation, which is not worth parsing, and
@@ -199,6 +205,39 @@ rule simply stays silent. Its whole precision lives in the metadata: an
 rather than reported and excused. It found five real ports on the corpus,
 all five converted to bindings.
 
+The 2026-08 round promoted the corpus-independent half of ai-demokit's
+`pattern-lint.mjs` into real rules, so every consumer sees them instead of
+one repo's gate script:
+
+| Origin | Rule |
+| --- | --- |
+| pattern-lint `popover-display-val` (hold-out probes 607/613/617) | `popover-display-val`, with a `--fix` |
+| pattern-lint `uncurated-formatter` (formatter pack removed upstream) | `uncurated-formatter` + `lib/formatters.mjs`, the hand-maintained curated list — the render harness mirrors it, a test keeps the two in step |
+| pattern-lint `hardcoded-binding-path` (samples 456/457 human find) | `hardcoded-binding-path`, with the OData-entity-path and `<style>`-span exemptions |
+| pattern-lint `duplicate-for-iterator` (app 234) | `duplicate-for-iterator` |
+| app-guide lifecycle chapter | `separate-lifecycle-ifs` (guard blocks that RETURN are exempt — the linter's own `good` fixture is the precedent) and `missing-view-display-on-navigated` |
+| snapshot params were complete all along | `unknown-event-parameter` — existence per event, but only for an event the control declares ITSELF: the first corpus run flagged `DateRangeSelection change` reading `from`/`to`/`valid`, which the metadata declares on `InputBase` with only `value` — a subclass can widen an inherited event without redeclaring it |
+
+The corpus rules stay in pattern-lint only where they encode CORPUS policy
+(method order, formatting, sidecar headers) — those do not belong here.
+
+The second 2026-08-04 round added, each corpus-measured first:
+
+| Origin | Rule |
+| --- | --- |
+| ai-demokit app 043's live BINDING_ERROR (found by the e2e interaction that closed its LIVE_TEST) | `binding-to-nonpublic` — only PUBLIC attributes are serialized, a bound PROTECTED one fails the first roundtrip |
+| ai-demokit's documented residual gap ("enum values newer than 1.71 are invisible") | `enum-value-too-new` + the generator's `enumSince` map — its first corpus run confirmed the two hand-written POST_171 declarations on app 028 (`GenericTile frameType` OneByHalf/TwoByHalf @1.83) |
+| the last two generic pattern-lint rules | `ui5-internal-access` (mProperties & friends), `commercial-ui5-host` |
+| `hardcoded-binding-path` said "don't", nothing said "does it exist" | `unknown-binding-path` now also judges `path: '/X'` in complex binding infos and `${/X}` in expressions — the first corpus run found the row-index trap (`/T_ITEMS/9/TEXT` is legal; numeric segments now step into the bound table's row) |
+
+Also in that round: `undeclared-namespace` gained a `--fix` for the
+conventional prefixes, `--format sarif`, the adoption **baseline**
+(`--update-baseline`, stale entries FAIL), a page POOL in the render gate
+(`openRenderer({ pages })`, `checkFiles` uses 4 — the corpus render wall
+clock divides accordingly), and `scripts/check-upstream.mjs` +
+`upstream-sync.yml`, the weekly drift gate for the two hand-maintained
+knowledge files below.
+
 New candidates go here as they are found. Two rules of the trade the last
 rounds established, before anything is added:
 
@@ -240,12 +279,13 @@ enums) is generated from the installed `@openui5/*` packages (or
 npm run generate-metadata
 ```
 
-Regenerate it **only** when bumping the `@openui5/*` pins in `package.json`,
-and commit both together. There is **no CI drift gate** for it (unlike
-ai-demokit's `meta_valid`) — a change to `generate-metadata.mjs` without a
-regenerate merges silently, so regenerate + commit in the same change,
-always. The snapshot's version bounds what the gate can know (reasoning in
-the README).
+Regenerate it **only** when bumping the `@openui5/*` pins in `package.json`
+(or when the generator itself changes shape), and commit both together. The
+drift gate (`generate-metadata --check`) runs **inside `npm test`**: the
+generation dropped from ~3 minutes to ~2 seconds when the unanchored
+`(\w+)\.extend\(` scan — 167 of those 172 seconds — was replaced by a
+literal-anchored one (`extendHits`). The snapshot's version bounds what the
+gate can know (reasoning in the README).
 
 **The generator is published with the package** (`files[]`) and takes
 `--out <file>`, because it is the ecosystem's ONLY UI5 metadata parser.
@@ -293,12 +333,12 @@ frozen — ai-demokit's coverage docs read `controls[…].since` / `.deprecated`
 - The VS Code extension additionally pins a **linter commit SHA** in its
   `package-lock.json` for the bundled property gate — a new finding type is
   invisible in the editor until that lock is bumped there.
-- **`abap2ui5lint.jsonc` is honoured by the CLI and the Action, not yet by
-  the VS Code extension** (it calls the library directly and reads its
-  thresholds from VS Code settings). Until that is wired up, a repo that
-  pins a UI5 floor here gets a different verdict in the editor than in CI —
-  see the extension's AGENTS.md for the intended fix (`export config` is
-  already available as `@abap2ui5/linter/config`).
+- **`abap2ui5lint.jsonc` is honoured by the CLI, the Action AND the VS Code
+  extension** — the extension discovers it via `findConfigFrom`/`loadConfig`
+  from `@abap2ui5/linter/config` and lets it beat the VS Code settings
+  ("that is what CI checks against", its `src/lintconfig.ts`). The editor/CI
+  divergence this bullet used to describe is closed; keep the config loader
+  backward compatible, three consumers read it now.
 
 ## Relation to ai-demokit — this repo is canonical now
 
