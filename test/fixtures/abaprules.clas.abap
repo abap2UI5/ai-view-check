@@ -13,6 +13,7 @@ CLASS zcl_fixture_rules IMPLEMENTATION.
     view->open( n = `View` ns = `mvc`
         )->a( n = `xmlns`     v = `sap.m`
         )->a( n = `xmlns:mvc` v = `sap.ui.core.mvc`
+        )->a( n = `xmlns:w`   v = `sap.ui.integration.widgets`
         )->open( `Page`
           )->leaf( `Input`
             )->a( n = `value` v = client->_bind_edit( name )
@@ -31,7 +32,15 @@ CLASS zcl_fixture_rules IMPLEMENTATION.
                                                           t_arg = VALUE #( ( `REDIRECT` ) ( |\{ URL: 'http://www.sap.com', NEW_WINDOW: true \}| ) ) )
           )->leaf( `Button`
             )->a( n = `text`  v = `Pick`
-            )->a( n = `press` v = client->_event( val = `PICK` t_arg = VALUE #( ( `{BARE_BRACE}` ) ( `${RESOLVED}` ) ( `plain` ) ( `{0} selected` ) ( |{ lv_local }| ) ) ) ).
+            )->a( n = `press` v = client->_event( val = `PICK` t_arg = VALUE #( ( `{BARE_BRACE}` ) ( `${RESOLVED}` ) ( `plain` ) ( `{0} selected` ) ( |{ lv_local }| ) ) )
+          )->leaf( `Button`
+            )->a( n = `text`  v = `Trailing`
+            )->a( n = `press` v = client->_event( val = `TRAILING` t_arg = VALUE #( ( `first` ) ( `` ) ) )
+          )->leaf( `Button`
+            )->a( n = `text`  v = `Middle`
+            )->a( n = `press` v = client->_event( val = `MIDDLE` t_arg = VALUE #( ( `first` ) ( `` ) ( `third` ) ) )
+          )->leaf( n = `Card` ns = `w`
+            )->a( n = `manifest` v = `{"sap.card":{"type":"List"}}` ).
 
     client->view_display( view->stringify( ) ).
 

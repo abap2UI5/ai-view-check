@@ -116,6 +116,17 @@ assert(!hasR('event-arg-unresolved', (x) => /lv_local/.test(x.value)),
   'abap rules: |{ var }| is an ABAP string template - interpolated server-side, not a binding');
 assert(!hasR('event-arg-unresolved', (x) => /URL:/.test(x.value)),
   'abap rules: a brace object in a FRONTEND action t_arg (_event_client) is its parameter set, not a binding');
+// get_t_arg buffers an empty argument and flushes it only when a later
+// non-empty one follows: an empty entry BETWEEN filled ones keeps its slot, a
+// TRAILING one disappears and get_event_arg( n ) reads initial
+assert(hasR('trailing-empty-event-arg', (x) => x.value === '2'),
+  'abap rules: a trailing empty t_arg never arrives');
+assert(!hasR('trailing-empty-event-arg', (x) => x.value === '3'),
+  'abap rules: an empty t_arg BETWEEN filled ones keeps its slot and is fine');
+// UI5 reads a leading { as a binding, so a raw JSON object literal in an
+// attribute never reaches the property - bind it instead
+assert(hasR('json-literal-in-attribute', (x) => x.member === 'manifest'),
+  'abap rules: a raw JSON literal in a view attribute is read as a binding');
 
 const vr = (await checkFiles([f('viewrules.clas.abap')], { render: false }))[0];
 const hasV = (t, pred = () => true) => vr.findings.some((x) => x.type === t && pred(x));

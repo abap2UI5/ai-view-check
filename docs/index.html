@@ -72,12 +72,12 @@ table.sev td { padding: .3rem .8rem .3rem 0; vertical-align: top; }
     <p class="lede">Every rule the <a href="https://github.com/abap2UI5/linter">abap2UI5 view linter</a> can report — the id it prints,
       what it means, and what to do about it.</p>
     <div class="counts">
-      <span class="badge error">33 error</span>
-      <span class="badge warning">17 warning</span>
+      <span class="badge error">34 error</span>
+      <span class="badge warning">18 warning</span>
       <span class="badge hint">5 hint</span>
       <span class="badge fix">5 autofixable</span>
     </div>
-    <input id="filter" type="search" placeholder="Filter 55 rules — id, wording, severity" autocomplete="off" spellcheck="false">
+    <input id="filter" type="search" placeholder="Filter 57 rules — id, wording, severity" autocomplete="off" spellcheck="false">
     <p class="hint-line">The id is what the linter prints at the end of every reported line, what the
       <code>rules</code> block of <code>abap2ui5lint.jsonc</code> is keyed by, and what a
       <code>abap2ui5lint-disable-next-line</code> comment names.</p>
@@ -407,6 +407,13 @@ a( n = `title` v = client-&gt;_bind( title ) )            " moves with the varia
         <pre><code>client-&gt;_event_client( val   = client-&gt;cs_event-control_global
                        t_arg = VALUE #( ( `MESSAGE_TOASTER` ) ( `show` ) ( `hi` ) ) )</code></pre>
       </article>
+      <article class="rule" id="json-literal-in-attribute" data-search="json-literal-in-attribute a raw json literal written into a view attribute ui5 parses an attribute value starting with { as a binding, so a json object literal ({"sap.card":…) is read as a binding path and the attribute ends up empty — the classic way to lose an integration card's manifest. keep the json in the model and bind it: client-&gt;_bind( manifest ). error">
+        <h3><a href="#json-literal-in-attribute">json-literal-in-attribute</a>
+          <span class="badge error">error</span>
+        </h3>
+        <p class="summary">a raw JSON literal written into a view attribute</p>
+        <p class="detail">UI5 parses an attribute value starting with <code>{</code> as a binding, so a JSON object literal (<code>{"sap.card":…</code>) is read as a binding path and the attribute ends up empty — the classic way to lose an integration Card's manifest. Keep the JSON in the model and bind it: <code>client-&gt;_bind( manifest )</code>.</p>
+      </article>
       <article class="rule" id="missing-view-display-on-navigated" data-search="missing-view-display-on-navigated a check_on_navigated( ) branch that never re-displays the view when a called app leaves, the browser still shows that app's view — returning control alone changes nothing on screen. the check_on_navigated( ) branch has to hand a view back: client-&gt;view_display( ), or view_model_update( ) when the view instance survives. a branch that only reads the result and falls through leaves the screen showing the wrong app, with no error anywhere. error">
         <h3><a href="#missing-view-display-on-navigated">missing-view-display-on-navigated</a>
           <span class="badge error">error</span>
@@ -458,6 +465,13 @@ ENDIF.</code></pre>
         <pre><code>follow_up_action( val = client-&gt;cs_event-control_by_id
                   t_arg = VALUE #( ( `sideContent` ) ( `setShowSideContent` ) ( `true` ) ) )
 " -&gt; a( n = `showSideContent` v = client-&gt;_bind( show_side ) )</code></pre>
+      </article>
+      <article class="rule" id="trailing-empty-event-arg" data-search="trailing-empty-event-arg the last t_arg entry is empty and never arrives get_t_arg buffers an empty argument and flushes it only when a later non-empty one follows, so an empty entry between filled ones keeps its slot and a trailing one disappears. the handler's get_event_arg( n ) for that position reads initial, with no error anywhere. the framework pads a missing trailing argument only for a nullable declared kind on a control method, which does not apply to a backend _event. warning">
+        <h3><a href="#trailing-empty-event-arg">trailing-empty-event-arg</a>
+          <span class="badge warning">warning</span>
+        </h3>
+        <p class="summary">the last <code>t_arg</code> entry is empty and never arrives</p>
+        <p class="detail"><code>get_t_arg</code> buffers an empty argument and flushes it only when a later non-empty one follows, so an empty entry between filled ones keeps its slot and a TRAILING one disappears. The handler's <code>get_event_arg( n )</code> for that position reads initial, with no error anywhere. The framework pads a missing trailing argument only for a nullable declared kind on a control method, which does not apply to a backend <code>_event</code>.</p>
       </article>
       <article class="rule" id="ui5-internal-access" data-search="ui5-internal-access mproperties &amp; friends — private ui5 internals the mproperties/maggregations/mbindinginfos/meventregistry member tables are ui5 implementation details with no api contract — they are renamed or restructured across ui5 patches without notice, so a wire or expression that reads them works on the version it was written against and breaks silently on the next one. restructure to a two-way binding or a public parameter. warning">
         <h3><a href="#ui5-internal-access">ui5-internal-access</a>

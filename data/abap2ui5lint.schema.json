@@ -191,6 +191,10 @@
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'invalid-property-value' — default severity: error"
         },
+        "json-literal-in-attribute": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'json-literal-in-attribute' — default severity: error"
+        },
         "member-deprecated": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'member-deprecated' — default severity: warning"
@@ -238,6 +242,10 @@
         "too-many-children": {
           "$ref": "#/definitions/rule",
           "description": "abap2UI5-linter rule 'too-many-children' — default severity: error"
+        },
+        "trailing-empty-event-arg": {
+          "$ref": "#/definitions/rule",
+          "description": "abap2UI5-linter rule 'trailing-empty-event-arg' — default severity: warning"
         },
         "ui5-internal-access": {
           "$ref": "#/definitions/rule",
