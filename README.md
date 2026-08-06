@@ -1,9 +1,15 @@
 # abap2UI5-linter
 
-**Validate abap2UI5 views without an SAP system** — a CLI, library, and
+**Validate abap2UI5 app classes without an SAP system** — a CLI, library, and
 GitHub Action extracted from the CI gates of
 [ai-demokit](https://github.com/abap2UI5/ai-demokit), where they guard 276
 generated ports of the official UI5 demo kit samples.
+
+It checks a **whole app class**, not just the XML it emits: the ABAP source
+and the view it builds are validated together. The defects that matter most
+are the ones living between the two — a bound attribute whose ABAP field does
+not exist, an event argument the control never delivers — and no UI5 tooling
+can see them, because the view only exists at runtime.
 
 Two gates:
 
