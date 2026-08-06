@@ -25,7 +25,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { CURATED_FORMATTERS } from '../lib/formatters.mjs';
-import { GLOBAL_TARGETS } from '../lib/frontend-actions.mjs';
+import { GLOBAL_TARGETS, CSS_PROPERTIES } from '../lib/frontend-actions.mjs';
 
 const RAW = 'https://raw.githubusercontent.com/abap2UI5/abap2UI5/main';
 const FORMATTER_PATH = 'app/webapp/model/formatter.js';
@@ -76,11 +76,26 @@ export function parseGlobalTargets(abapSrc) {
     const methodsAt = entry.search(/methods\s*:\s*\{/);
     if (methodsAt !== -1) {
       const methods = braceRegion(entry, entry.indexOf('{', methodsAt));
-      out[m[1]] = [...methods.matchAll(/(\w+)\s*:/g)].map((x) => x[1]);
+      // a `//` comment documenting the payload shape ("{ CODE: { digits: n } }")
+      // carries `word:` pairs that are not methods - drop the comments first
+      // (`://` of a URL is not a comment start)
+      const code = methods.replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+      out[m[1]] = [...code.matchAll(/(\w+)\s*:/g)].map((x) => x[1]);
     }
     entryRe.lastIndex = open + entry.length + 2; // never match inside the entry
   }
   return out;
+}
+
+/** The CSS_PROPERTIES array literal of FrontendAction.js: the quoted entries
+ *  between `const CSS_PROPERTIES = [` and its closing bracket. */
+export function parseCssProperties(abapSrc) {
+  const js = embeddedJs(abapSrc);
+  const at = js.indexOf('const CSS_PROPERTIES = [');
+  if (at === -1) return [];
+  const end = js.indexOf('];', at);
+  if (end === -1) return [];
+  return [...js.slice(at, end).matchAll(/["'`]([a-z-]+)["'`]/g)].map((m) => m[1]);
 }
 
 const setDiff = (a, b) => a.filter((x) => !b.includes(x));
@@ -140,6 +155,11 @@ if (invokedDirectly) {
     process.exit(2);
   }
   report('CONTROL_GLOBAL targets (lib/frontend-actions.mjs)', Object.keys(GLOBAL_TARGETS), Object.keys(upstreamTargets));
+  // the css pseudo-method's property allowlist is a second closed set in the
+  // same file - a property the frontend dropped silently is exactly what the
+  // linter is here to catch, so the mirror must not drift either
+  const upstreamCss = parseCssProperties(actionSrc);
+  if (upstreamCss.length) report('CONTROL_BY_ID css properties (lib/frontend-actions.mjs)', CSS_PROPERTIES, upstreamCss);
   for (const name of Object.keys(GLOBAL_TARGETS)) {
     if (upstreamTargets[name]) {
       report(`CONTROL_GLOBAL ${name} methods`, GLOBAL_TARGETS[name], upstreamTargets[name]);
