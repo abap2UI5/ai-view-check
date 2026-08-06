@@ -1,5 +1,5 @@
 name: 'abap2UI5-linter'
-description: 'Validate abap2UI5 views: UI5 version/deprecation property gate + headless render smoke — no SAP system needed.'
+description: 'Validate abap2UI5 app classes — the ABAP and the view it builds, checked together. No SAP system needed.'
 branding:
   icon: 'check-circle'
   color: 'blue'

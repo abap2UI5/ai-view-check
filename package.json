@@ -1,7 +1,7 @@
 {
   "name": "@abap2ui5/linter",
   "version": "0.1.0",
-  "description": "Validate abap2UI5 views without an SAP system: UI5 version/deprecation property gate + headless render smoke.",
+  "description": "Validate abap2UI5 app classes without an SAP system: the ABAP and the view it builds, checked together.",
   "type": "module",
   "bin": {
     "abap2ui5-linter": "cli.mjs",

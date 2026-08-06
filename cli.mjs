@@ -177,7 +177,7 @@ if (!files.length) {
     // frozen --json contract cannot drift between the two paths
     console.log(formatJson([], { ...summarize([]), failing: 0 }, opt));
   } else {
-    console.log(`abap2ui5-linter: no checkable files under ${paths.join(', ')} (ABAP classes using z2ui5_cl_ai_xml, *.view.xml, *.fragment.xml)`);
+    console.log(`abap2ui5-linter: no checkable app classes under ${paths.join(', ')} (ABAP classes building a view with z2ui5_cl_ai_xml, or *.view.xml / *.fragment.xml)`);
   }
   process.exit(0);
 }
